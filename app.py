@@ -379,58 +379,54 @@ ja_alojados = res[res['dt_aloj'].apply(lambda d: d.to_pydatetime().replace(tzinf
 aves_recria   = int(ja_alojados[(ja_alojados['semanas_aloj'] < 23)]['femeas'].sum())
 aves_producao = int(ja_alojados[(ja_alojados['sem_atual'] >= 23) & (ja_alojados['sem_atual'] <= 68)]['femeas'].sum())
 
-# KPIs — linha 1
+# ── KPIs linha 1 ────────────────────────────────────────────────────────────
 k1, k2, k3, k4 = st.columns(4)
-k1.metric("Fêmeas no plantel",  fmt_n(res['femeas'].sum()))
-k2.metric("Lotes processados",  len(res))
-k3.metric("Ovos proj. (total)", f"{res['total_ovos'].sum()/1e6:.1f}M")
-k4.metric("Alertas de pico",    len(alertas))
+k1.metric("Fêmeas no plantel",           fmt_n(res['femeas'].sum()))
+k2.metric("Lotes processados",           len(res))
+k3.metric("Ovos proj. (total)",          f"{res['total_ovos'].sum()/1e6:.1f}M")
+k4.metric("Alertas de pico",             len(alertas))
 
-# KPIs — linha 2 (plantel por fase)
+# ── KPIs linha 2 ────────────────────────────────────────────────────────────
 k5, k6, _, _ = st.columns(4)
-k5.metric("🐣 Aves em Recria (< 23 sem)",      fmt_n(aves_recria))
-k6.metric("🥚 Aves em Produção (23 – 68 sem)",  fmt_n(aves_producao))
+k5.metric("🐣 Aves em Recria (< 23 sem)",     fmt_n(aves_recria))
+k6.metric("🥚 Aves em Produção (23–68 sem)",   fmt_n(aves_producao))
 
 st.markdown("---")
 
-# Curva consolidada
-grp = proj.groupby(["ano","mes"])["ovos_incub"].sum().reset_index()
-grp["periodo"] = pd.to_datetime(
-    grp["ano"].astype(str) + "-" + grp["mes"].astype(str).str.zfill(2) + "-01")
-grp = grp.sort_values("periodo")
-hm  = pd.Timestamp(HOJE.year, HOJE.month, 1)
+# ── Cards por unidade ────────────────────────────────────────────────────────
+st.markdown("#### Projeção por Unidade")
+unidades_card = sorted(res['unidade'].unique())
+n_cols = min(len(unidades_card), 4)
+rows_cards = [unidades_card[i:i+n_cols] for i in range(0, len(unidades_card), n_cols)]
 
-fig = go.Figure()
-fig.add_trace(go.Scatter(
-    x=grp[grp["periodo"] < hm]["periodo"],
-    y=grp[grp["periodo"] < hm]["ovos_incub"].round(),
-    mode="lines+markers", name="Realizado",
-    line=dict(color="#185FA5", width=2.5), marker=dict(size=4)))
-fig.add_trace(go.Scatter(
-    x=grp[grp["periodo"] >= hm]["periodo"],
-    y=grp[grp["periodo"] >= hm]["ovos_incub"].round(),
-    mode="lines+markers", name="Projetado",
-    line=dict(color="#85B7EB", width=2, dash="dot"), marker=dict(size=4)))
-fig.add_shape(type="line", x0=str(hm.date()), x1=str(hm.date()),
-              y0=0, y1=1, yref="paper",
-              line=dict(dash="dash", color="#aaa", width=1))
-fig.add_annotation(x=str(hm.date()), y=1, yref="paper",
-                   text="hoje", showarrow=False, yanchor="bottom",
-                   font=dict(size=11, color="#888"))
-fig.update_layout(
-    title=f"Curva consolidada — {', '.join(unidades_sel) if len(unidades_sel) <= 3 else f'{len(unidades_sel)} unidades'}",
-    height=350, margin=dict(l=60, r=20, t=60, b=40),
-    plot_bgcolor="#fff", paper_bgcolor="#fff",
-    legend=dict(orientation="h", y=1.1),
-    yaxis=dict(tickformat=",.0f"))
-st.plotly_chart(fig, use_container_width=True)
+for row_u in rows_cards:
+    cols_u = st.columns(len(row_u))
+    for col, u in zip(cols_u, row_u):
+        r_u   = res[res['unidade'] == u]
+        cor   = CORES_UNIDADE.get(u, '#555555')
+        ovos  = r_u['total_ovos'].sum()
+        fem   = int(r_u['femeas'].sum())
+        lotes = len(r_u)
+        col.markdown(
+            f"""<div style="border-left:5px solid {cor};padding:10px 14px;
+                border-radius:6px;background:#f8f9fa;margin-bottom:6px">
+                <div style="font-weight:700;color:{cor};font-size:15px">{u}</div>
+                <div style="font-size:22px;font-weight:800;color:#1a1a1a">{ovos/1e6:.1f}M</div>
+                <div style="font-size:11px;color:#666">ovos projetados</div>
+                <hr style="margin:6px 0;border-color:#ddd">
+                <div style="font-size:12px;color:#444">
+                    🐔 {fmt_n(fem)} fêmeas &nbsp;|&nbsp; 📋 {lotes} lotes
+                </div>
+            </div>""",
+            unsafe_allow_html=True)
 
-# Curva semanal (semana Pluma: Qui → Qua)
-st.subheader("📅 Projeção Semanal — Semana Pluma (Qui → Qua)")
+st.markdown("---")
+
+# ── Curva semanal consolidada ────────────────────────────────────────────────
+st.markdown("#### 📅 Projeção Semanal — Semana Pluma (Qui → Qua)")
 grp_sem = (
     proj.groupby("sem_pluma")["ovos_incub"].sum()
-    .reset_index()
-    .sort_values("sem_pluma")
+    .reset_index().sort_values("sem_pluma")
 )
 grp_sem["sem_pluma"] = pd.to_datetime(grp_sem["sem_pluma"])
 hoje_thu = pd.Timestamp(week_start_pluma(HOJE))
@@ -439,7 +435,7 @@ fig_sem = go.Figure()
 fig_sem.add_trace(go.Bar(
     x=grp_sem[grp_sem["sem_pluma"] < hoje_thu]["sem_pluma"],
     y=grp_sem[grp_sem["sem_pluma"] < hoje_thu]["ovos_incub"].round(),
-    name="Realizado", marker_color="#185FA5"))
+    name="Realizado", marker_color="#1F3864"))
 fig_sem.add_trace(go.Bar(
     x=grp_sem[grp_sem["sem_pluma"] >= hoje_thu]["sem_pluma"],
     y=grp_sem[grp_sem["sem_pluma"] >= hoje_thu]["ovos_incub"].round(),
@@ -452,56 +448,13 @@ fig_sem.add_annotation(x=str(hoje_thu.date()), y=1, yref="paper",
     text="hoje", showarrow=False, yanchor="bottom",
     font=dict(size=11, color="#888"))
 fig_sem.update_layout(
-    height=320, margin=dict(l=60, r=20, t=20, b=40),
+    height=340, margin=dict(l=60, r=20, t=20, b=40),
     plot_bgcolor="#fff", paper_bgcolor="#fff",
     barmode="stack",
-    legend=dict(orientation="h", y=1.1),
+    legend=dict(orientation="h", y=1.08),
     xaxis=dict(tickformat="%d/%m/%Y", dtick="M1"),
     yaxis=dict(tickformat=",.0f"))
 st.plotly_chart(fig_sem, use_container_width=True)
-
-# Por unidade (quando mais de uma selecionada)
-if len(unidades_sel) > 1:
-    st.subheader("Por unidade")
-    fig_u = go.Figure()
-    for u in sorted(df_proj_v[df_proj_v['unidade'].isin(unidades_sel)]['unidade'].unique()):
-        sub = df_proj_v[df_proj_v['unidade'] == u].groupby(["ano","mes"])["ovos_incub"].sum().reset_index()
-        sub["periodo"] = pd.to_datetime(
-            sub["ano"].astype(str) + "-" + sub["mes"].astype(str).str.zfill(2) + "-01")
-        sub = sub.sort_values("periodo")
-        fig_u.add_trace(go.Scatter(
-            x=sub["periodo"], y=sub["ovos_incub"].round(),
-            mode="lines", name=u,
-            line=dict(color=CORES_UNIDADE.get(u, "#888"), width=2)))
-    fig_u.update_layout(
-        height=320, margin=dict(l=60, r=20, t=20, b=40),
-        plot_bgcolor="#fff", paper_bgcolor="#fff",
-        legend=dict(orientation="h", y=1.15),
-        yaxis=dict(tickformat=",.0f"))
-    st.plotly_chart(fig_u, use_container_width=True)
-
-# Por linhagem + Top 10
-cores_lin = {"COBB": "#185FA5", "ROSS": "#BA7517"}
-cores_lin_rgba = {"COBB": "rgba(24,95,165,0.6)", "ROSS": "rgba(186,117,23,0.6)"}
-
-if True:
-    fig2 = go.Figure()
-    for lin in proj['linhagem'].unique():
-        sub = proj[proj['linhagem'] == lin].groupby(["ano","mes"])["ovos_incub"].sum().reset_index()
-        sub["periodo"] = pd.to_datetime(
-            sub["ano"].astype(str) + "-" + sub["mes"].astype(str).str.zfill(2) + "-01")
-        sub = sub.sort_values("periodo")
-        fig2.add_trace(go.Scatter(
-            x=sub["periodo"], y=sub["ovos_incub"].round(),
-            mode="lines", name=lin,
-            line=dict(color=cores_lin.get(lin, "#888"), width=2)))
-    fig2.update_layout(
-        title="Por linhagem", height=280,
-        margin=dict(l=50, r=10, t=40, b=30),
-        plot_bgcolor="#fff", paper_bgcolor="#fff",
-        legend=dict(orientation="h", y=1.15),
-        yaxis=dict(tickformat=",.0f"))
-    st.plotly_chart(fig2, use_container_width=True)
 
 st.markdown("---")
 
