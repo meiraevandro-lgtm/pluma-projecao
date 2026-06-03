@@ -406,15 +406,22 @@ for row_u in rows_cards:
         r_u    = res[res['unidade'] == u]
         cor    = CORES_UNIDADE.get(u, '#555555')
         ovos   = r_u['total_ovos'].sum()
-        fem    = int(r_u['femeas'].sum())
         lotes  = len(r_u)
-        # breakdown por ano de projeção
-        p_u    = df_proj_full[df_proj_full['unidade'] == u]
+        # fêmeas somente em produção agora (23-68 sem, já alojadas)
+        r_u_prod = r_u.copy()
+        r_u_prod['semanas_aloj'] = r_u_prod['dt_aloj'].apply(
+            lambda d: (HOJE - d.to_pydatetime().replace(tzinfo=None)).days // 7)
+        fem_prod = int(r_u_prod[
+            (r_u_prod['dt_aloj'].apply(lambda d: d.to_pydatetime().replace(tzinfo=None)) <= HOJE) &
+            (r_u_prod['sem_atual'] >= 23) & (r_u_prod['sem_atual'] <= 68)
+        ]['femeas'].sum())
+        # breakdown somente 2026 e 2027
+        p_u = df_proj_full[df_proj_full['unidade'] == u]
         if fil_anos_aloj:
             p_u = p_u[p_u['dt_aloj'].apply(lambda d: d.year).isin(fil_anos_aloj)]
-        por_ano = p_u.groupby('ano')['ovos_incub'].sum()
+        por_ano = p_u[p_u['ano'].isin([2026, 2027])].groupby('ano')['ovos_incub'].sum()
         anos_html = "".join([
-            f'<span style="margin-right:8px"><b>{a}:</b> {v/1e6:.0f}M</span>'
+            f'<span style="margin-right:10px"><b>{a}:</b> {v/1e6:.0f}M</span>'
             for a, v in por_ano.items()
         ])
         col.markdown(
@@ -423,10 +430,10 @@ for row_u in rows_cards:
                 <div style="font-weight:700;color:{cor};font-size:15px">{u}</div>
                 <div style="font-size:24px;font-weight:800;color:#1a1a1a">{ovos/1e6:.1f}M</div>
                 <div style="font-size:11px;color:#888;margin-bottom:4px">total de ovos projetados</div>
-                <div style="font-size:11px;color:#555">{anos_html}</div>
+                <div style="font-size:12px;color:#333;font-weight:600">{anos_html}</div>
                 <hr style="margin:6px 0;border-color:#ddd">
                 <div style="font-size:12px;color:#444">
-                    🐔 {fmt_n(fem)} fêmeas &nbsp;|&nbsp; 📋 {lotes} lotes
+                    🥚 {fmt_n(fem_prod)} fêmeas em produção &nbsp;|&nbsp; 📋 {lotes} lotes
                 </div>
             </div>""",
             unsafe_allow_html=True)
