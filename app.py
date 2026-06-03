@@ -481,11 +481,10 @@ if len(unidades_sel) > 1:
     st.plotly_chart(fig_u, use_container_width=True)
 
 # Por linhagem + Top 10
-c_lin, c_top = st.columns(2)
 cores_lin = {"COBB": "#185FA5", "ROSS": "#BA7517"}
 cores_lin_rgba = {"COBB": "rgba(24,95,165,0.6)", "ROSS": "rgba(186,117,23,0.6)"}
 
-with c_lin:
+if True:
     fig2 = go.Figure()
     for lin in proj['linhagem'].unique():
         sub = proj[proj['linhagem'] == lin].groupby(["ano","mes"])["ovos_incub"].sum().reset_index()
@@ -503,21 +502,6 @@ with c_lin:
         legend=dict(orientation="h", y=1.15),
         yaxis=dict(tickformat=",.0f"))
     st.plotly_chart(fig2, use_container_width=True)
-
-with c_top:
-    top10 = res.nlargest(10, "total_ovos")[["lote","total_ovos","linhagem","unidade"]]
-    fig3  = go.Figure(go.Bar(
-        x=top10["total_ovos"].round(), y=top10["lote"],
-        orientation="h",
-        marker_color=[cores_lin_rgba.get(r, "rgba(128,128,128,0.6)") for r in top10["linhagem"]],
-    ))
-    fig3.update_layout(
-        title="Top 10 lotes por volume", height=280,
-        margin=dict(l=80, r=40, t=40, b=30),
-        plot_bgcolor="#fff", paper_bgcolor="#fff",
-        yaxis=dict(autorange="reversed"),
-        xaxis=dict(tickformat=",.0f"))
-    st.plotly_chart(fig3, use_container_width=True)
 
 st.markdown("---")
 
