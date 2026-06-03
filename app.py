@@ -374,8 +374,10 @@ def semanas_desde_aloj(dt):
         return 0
 
 res['semanas_aloj'] = res['dt_aloj'].apply(semanas_desde_aloj)
-aves_recria   = int(res[res['semanas_aloj'] < 23]['femeas'].sum())
-aves_producao = int(res[(res['sem_atual'] >= 23) & (res['sem_atual'] <= 68)]['femeas'].sum())
+# somente lotes já alojados (dt_aloj <= hoje) e dentro do ciclo (≤ 68 sem)
+ja_alojados = res[res['dt_aloj'].apply(lambda d: d.to_pydatetime().replace(tzinfo=None)) <= HOJE]
+aves_recria   = int(ja_alojados[(ja_alojados['semanas_aloj'] < 23)]['femeas'].sum())
+aves_producao = int(ja_alojados[(ja_alojados['sem_atual'] >= 23) & (ja_alojados['sem_atual'] <= 68)]['femeas'].sum())
 
 # KPIs — linha 1
 k1, k2, k3, k4 = st.columns(4)
