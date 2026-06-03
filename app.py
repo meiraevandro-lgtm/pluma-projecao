@@ -218,7 +218,8 @@ def calcular_projecao(lotes):
             if dt_sem > abate:
                 break
             pos, apr, viab = curva[sem]
-            aves  = femeas * (viab / 100)
+            # 95% viabilidade recria (5% mortalidade antes da produção)
+            aves  = femeas * 0.95 * (viab / 100)
             ovos  = aves * (pos / 100) * (apr / 100) * 7
             sem_pluma = week_start_pluma(dt_sem)
             # até sem 23 usa granja recria; após usa granja produção (fixa)
