@@ -282,32 +282,49 @@ df_proj_full = st.session_state['df_proj']
 
 st.markdown("---")
 
-# Filtros
-unidades_disp = ["Todas"] + sorted(df_res_full['unidade'].unique().tolist())
-unidade_view  = st.radio("Visualizar", unidades_disp, horizontal=True)
+# ── Seleção de unidades (checkboxes) ────────────────────────────────────────
+todas_unidades = sorted(df_res_full['unidade'].unique().tolist())
 
-if unidade_view == "Todas":
-    df_res_v  = df_res_full.copy()
-    df_proj_v = df_proj_full.copy()
-else:
-    df_res_v  = df_res_full[df_res_full['unidade'] == unidade_view].copy()
-    df_proj_v = df_proj_full[df_proj_full['unidade'] == unidade_view].copy()
+st.markdown("**Unidades visualizadas:**")
+cols_u = st.columns(len(todas_unidades))
+unidades_sel = []
+for i, u in enumerate(todas_unidades):
+    with cols_u[i]:
+        if st.checkbox(u, value=True, key=f"chk_{u}"):
+            unidades_sel.append(u)
 
-fc1, fc2, fc3 = st.columns(3)
-granjas   = ["Todas"] + sorted(df_res_v['granja'].dropna().unique().tolist())
-linhagens = ["Todas"] + sorted(df_res_v['linhagem'].dropna().unique().tolist())
-anos      = ["Todos"] + sorted(df_proj_v['ano'].unique().tolist())
+if not unidades_sel:
+    st.warning("Selecione pelo menos uma unidade.")
+    st.stop()
 
-with fc1: fil_granja = st.selectbox("Granja de Recria", granjas)
-with fc2: fil_lin    = st.selectbox("Linhagem", linhagens)
-with fc3: fil_ano    = st.selectbox("Ano", anos)
+df_res_v  = df_res_full[df_res_full['unidade'].isin(unidades_sel)].copy()
+df_proj_v = df_proj_full[df_proj_full['unidade'].isin(unidades_sel)].copy()
+
+# ── Filtros adicionais ───────────────────────────────────────────────────────
+fc1, fc2, fc3, fc4 = st.columns(4)
+
+granjas     = ["Todas"] + sorted(df_res_v['granja'].dropna().unique().tolist())
+linhagens   = ["Todas"] + sorted(df_res_v['linhagem'].dropna().unique().tolist())
+anos_proj   = ["Todos"] + sorted(df_proj_v['ano'].unique().tolist())
+anos_aloj   = sorted(df_res_v['dt_aloj'].dropna().apply(lambda d: d.year).unique().tolist())
+
+with fc1: fil_granja   = st.selectbox("Granja de Recria", granjas)
+with fc2: fil_lin      = st.selectbox("Linhagem", linhagens)
+with fc3: fil_ano_proj = st.selectbox("Ano projeção", anos_proj)
+with fc4:
+    fil_anos_aloj = st.multiselect(
+        "Ano alojamento", anos_aloj, default=anos_aloj,
+        help="Filtra lotes pelo ano em que foram alojados na recria")
 
 res  = df_res_v.copy()
 proj = df_proj_v.copy()
 
-if fil_granja != "Todas": res = res[res['granja'] == fil_granja]; proj = proj[proj['granja'] == fil_granja]
-if fil_lin    != "Todas": res = res[res['linhagem'] == fil_lin];  proj = proj[proj['linhagem'] == fil_lin]
-if fil_ano    != "Todos": proj = proj[proj['ano'] == int(fil_ano)]
+if fil_granja   != "Todas":  res = res[res['granja'] == fil_granja];      proj = proj[proj['granja'] == fil_granja]
+if fil_lin      != "Todas":  res = res[res['linhagem'] == fil_lin];       proj = proj[proj['linhagem'] == fil_lin]
+if fil_ano_proj != "Todos":  proj = proj[proj['ano'] == int(fil_ano_proj)]
+if fil_anos_aloj:
+    res  = res[res['dt_aloj'].apply(lambda d: d.year).isin(fil_anos_aloj)]
+    proj = proj[proj['dt_aloj'].apply(lambda d: d.year).isin(fil_anos_aloj)]
 
 alertas = res[res['alerta']]
 
@@ -387,11 +404,11 @@ fig_sem.update_layout(
     yaxis=dict(tickformat=",.0f"))
 st.plotly_chart(fig_sem, use_container_width=True)
 
-# Por unidade (somente no modo Todas)
-if unidade_view == "Todas":
+# Por unidade (quando mais de uma selecionada)
+if len(unidades_sel) > 1:
     st.subheader("Por unidade")
     fig_u = go.Figure()
-    for u in sorted(df_proj_v['unidade'].unique()):
+    for u in sorted(df_proj_v[df_proj_v['unidade'].isin(unidades_sel)]['unidade'].unique()):
         sub = df_proj_v[df_proj_v['unidade'] == u].groupby(["ano","mes"])["ovos_incub"].sum().reset_index()
         sub["periodo"] = pd.to_datetime(
             sub["ano"].astype(str) + "-" + sub["mes"].astype(str).str.zfill(2) + "-01")
