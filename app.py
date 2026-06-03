@@ -407,14 +407,16 @@ for row_u in rows_cards:
         cor    = CORES_UNIDADE.get(u, '#555555')
         ovos   = r_u['total_ovos'].sum()
         lotes  = len(r_u)
-        # fêmeas somente em produção agora (23-68 sem, já alojadas)
-        r_u_prod = r_u.copy()
-        r_u_prod['semanas_aloj'] = r_u_prod['dt_aloj'].apply(
-            lambda d: (HOJE - d.to_pydatetime().replace(tzinfo=None)).days // 7)
-        fem_prod = int(r_u_prod[
-            (r_u_prod['dt_aloj'].apply(lambda d: d.to_pydatetime().replace(tzinfo=None)) <= HOJE) &
-            (r_u_prod['sem_atual'] >= 23) & (r_u_prod['sem_atual'] <= 68)
-        ]['femeas'].sum())
+        # fêmeas e lotes por fase (já alojados, dentro do ciclo)
+        r_u2 = r_u.copy()
+        r_u2['aloj_dt_py'] = r_u2['dt_aloj'].apply(lambda d: d.to_pydatetime().replace(tzinfo=None))
+        r_u2['sem_aloj']   = r_u2['aloj_dt_py'].apply(lambda d: (HOJE - d).days // 7)
+        ja_aloj_u  = r_u2[r_u2['aloj_dt_py'] <= HOJE]
+        mask_rec   = ja_aloj_u['sem_aloj'] < 23
+        mask_prod  = (ja_aloj_u['sem_atual'] >= 23) & (ja_aloj_u['sem_atual'] <= 68)
+        fem_prod   = int(ja_aloj_u[mask_prod]['femeas'].sum())
+        lotes_rec  = int(mask_rec.sum())
+        lotes_prod = int(mask_prod.sum())
         # breakdown somente 2026 e 2027
         p_u = df_proj_full[df_proj_full['unidade'] == u]
         if fil_anos_aloj:
@@ -433,7 +435,10 @@ for row_u in rows_cards:
                 <div style="font-size:12px;color:#333;font-weight:600">{anos_html}</div>
                 <hr style="margin:6px 0;border-color:#ddd">
                 <div style="font-size:12px;color:#444">
-                    🥚 {fmt_n(fem_prod)} fêmeas em produção &nbsp;|&nbsp; 📋 {lotes} lotes
+                    🥚 {fmt_n(fem_prod)} fêmeas em produção
+                </div>
+                <div style="font-size:12px;color:#444;margin-top:3px">
+                    🐣 {lotes_rec} lotes em recria &nbsp;|&nbsp; 🥚 {lotes_prod} lotes em produção
                 </div>
             </div>""",
             unsafe_allow_html=True)
