@@ -54,8 +54,16 @@ HOJE = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
 
 # ─── Limpeza e processamento ────────────────────────────────────────────────
 def parse_qtde(v):
-    if v is None or str(v).strip() in ("", "nan", "None"): return 0
-    return int(str(v).replace(".", "").replace(",", "").strip().split()[0]) if str(v).strip() else 0
+    if v is None: return 0
+    if isinstance(v, (int, float)):
+        import math
+        if math.isnan(v): return 0
+        return int(v)
+    s = str(v).strip()
+    if s in ("", "nan", "None", "NaT", "NaN"): return 0
+    s = s.replace(".", "").replace(",", "").split()[0]
+    try: return int(s)
+    except: return 0
 
 def parse_data(v):
     if isinstance(v, datetime): return v
@@ -311,3 +319,5 @@ if df_raw is not None:
 
 else:
     st.info("Faça upload do Excel ou cole os dados para começar.")
+   
+   
