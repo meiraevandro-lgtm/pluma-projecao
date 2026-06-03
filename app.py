@@ -95,7 +95,9 @@ def get_curva(raca):
 
 def get_linhagem(raca):
     r = str(raca).upper()
-    if "ROSS" in r or "HUBB" in r:
+    if "HUBB" in r:
+        return "HUBBARD"
+    if "ROSS" in r:
         return "ROSS"
     return "COBB"
 
@@ -319,16 +321,15 @@ df_proj_full = st.session_state['df_proj']
 
 st.markdown("---")
 
-# ── Seleção de unidades (checkboxes) ────────────────────────────────────────
+# ── Seleção de unidades (multiselect estilizado) ─────────────────────────────
 todas_unidades = sorted(df_res_full['unidade'].unique().tolist())
 
-st.markdown("**Unidades visualizadas:**")
-cols_u = st.columns(len(todas_unidades))
-unidades_sel = []
-for i, u in enumerate(todas_unidades):
-    with cols_u[i]:
-        if st.checkbox(u, value=True, key=f"chk_{u}"):
-            unidades_sel.append(u)
+unidades_sel = st.multiselect(
+    "**Unidades visualizadas:**",
+    options=todas_unidades,
+    default=todas_unidades,
+    placeholder="Selecione as unidades...",
+)
 
 if not unidades_sel:
     st.warning("Selecione pelo menos uma unidade.")
@@ -402,17 +403,27 @@ rows_cards = [unidades_card[i:i+n_cols] for i in range(0, len(unidades_card), n_
 for row_u in rows_cards:
     cols_u = st.columns(len(row_u))
     for col, u in zip(cols_u, row_u):
-        r_u   = res[res['unidade'] == u]
-        cor   = CORES_UNIDADE.get(u, '#555555')
-        ovos  = r_u['total_ovos'].sum()
-        fem   = int(r_u['femeas'].sum())
-        lotes = len(r_u)
+        r_u    = res[res['unidade'] == u]
+        cor    = CORES_UNIDADE.get(u, '#555555')
+        ovos   = r_u['total_ovos'].sum()
+        fem    = int(r_u['femeas'].sum())
+        lotes  = len(r_u)
+        # breakdown por ano de projeção
+        p_u    = df_proj_full[df_proj_full['unidade'] == u]
+        if fil_anos_aloj:
+            p_u = p_u[p_u['dt_aloj'].apply(lambda d: d.year).isin(fil_anos_aloj)]
+        por_ano = p_u.groupby('ano')['ovos_incub'].sum()
+        anos_html = "".join([
+            f'<span style="margin-right:8px"><b>{a}:</b> {v/1e6:.0f}M</span>'
+            for a, v in por_ano.items()
+        ])
         col.markdown(
             f"""<div style="border-left:5px solid {cor};padding:10px 14px;
-                border-radius:6px;background:#f8f9fa;margin-bottom:6px">
+                border-radius:6px;background:#f8f9fa;margin-bottom:8px">
                 <div style="font-weight:700;color:{cor};font-size:15px">{u}</div>
-                <div style="font-size:22px;font-weight:800;color:#1a1a1a">{ovos/1e6:.1f}M</div>
-                <div style="font-size:11px;color:#666">ovos projetados</div>
+                <div style="font-size:24px;font-weight:800;color:#1a1a1a">{ovos/1e6:.1f}M</div>
+                <div style="font-size:11px;color:#888;margin-bottom:4px">total de ovos projetados</div>
+                <div style="font-size:11px;color:#555">{anos_html}</div>
                 <hr style="margin:6px 0;border-color:#ddd">
                 <div style="font-size:12px;color:#444">
                     🐔 {fmt_n(fem)} fêmeas &nbsp;|&nbsp; 📋 {lotes} lotes
@@ -455,6 +466,26 @@ fig_sem.update_layout(
     xaxis=dict(tickformat="%d/%m/%Y", dtick="M1"),
     yaxis=dict(tickformat=",.0f"))
 st.plotly_chart(fig_sem, use_container_width=True)
+
+# ── Curva por linhagem ───────────────────────────────────────────────────────
+st.markdown("#### 🧬 Projeção por Linhagem")
+CORES_LIN = {"COBB": "#185FA5", "ROSS": "#BA7517", "HUBBARD": "#2eaa5f"}
+fig_lin = go.Figure()
+for lin in sorted(proj['linhagem'].dropna().unique()):
+    sub = proj[proj['linhagem'] == lin].groupby(["ano","mes"])["ovos_incub"].sum().reset_index()
+    sub["periodo"] = pd.to_datetime(
+        sub["ano"].astype(str) + "-" + sub["mes"].astype(str).str.zfill(2) + "-01")
+    sub = sub.sort_values("periodo")
+    fig_lin.add_trace(go.Scatter(
+        x=sub["periodo"], y=sub["ovos_incub"].round(),
+        mode="lines", name=lin,
+        line=dict(color=CORES_LIN.get(lin, "#888"), width=2)))
+fig_lin.update_layout(
+    height=300, margin=dict(l=60, r=20, t=20, b=40),
+    plot_bgcolor="#fff", paper_bgcolor="#fff",
+    legend=dict(orientation="h", y=1.12),
+    yaxis=dict(tickformat=",.0f"))
+st.plotly_chart(fig_lin, use_container_width=True)
 
 st.markdown("---")
 
