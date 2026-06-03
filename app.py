@@ -366,12 +366,28 @@ if fil_anos_aloj:
 
 alertas = res[res['alerta']]
 
-# KPIs
+# Indicadores de plantel por fase
+def semanas_desde_aloj(dt):
+    try:
+        return (HOJE - dt.to_pydatetime().replace(tzinfo=None)).days // 7
+    except:
+        return 0
+
+res['semanas_aloj'] = res['dt_aloj'].apply(semanas_desde_aloj)
+aves_recria   = int(res[res['semanas_aloj'] < 23]['femeas'].sum())
+aves_producao = int(res[(res['sem_atual'] >= 23) & (res['sem_atual'] <= 68)]['femeas'].sum())
+
+# KPIs — linha 1
 k1, k2, k3, k4 = st.columns(4)
 k1.metric("Fêmeas no plantel",  fmt_n(res['femeas'].sum()))
 k2.metric("Lotes processados",  len(res))
 k3.metric("Ovos proj. (total)", f"{res['total_ovos'].sum()/1e6:.1f}M")
 k4.metric("Alertas de pico",    len(alertas))
+
+# KPIs — linha 2 (plantel por fase)
+k5, k6, _, _ = st.columns(4)
+k5.metric("🐣 Aves em Recria (< 23 sem)",      fmt_n(aves_recria))
+k6.metric("🥚 Aves em Produção (23 – 68 sem)",  fmt_n(aves_producao))
 
 st.markdown("---")
 
