@@ -60,6 +60,9 @@ HOJE = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
 
 CUTOFF_DATE = pd.Timestamp('2025-01-01')
 
+# Unidades que ainda NÃO lançaram alojamento de 2027 — excluir ano 2027
+SEM_ALOJ_2027 = {'Pluma DF'}
+
 # Estrutura padrão da maioria das unidades
 COL_DEFAULT = dict(
     aloj=1, lote_recria=3, granja_recria=6,
@@ -142,6 +145,9 @@ def ler_alojamento(uploaded_file):
                     continue
                 aloj_dt = pd.Timestamp(aloj_val)
                 if aloj_dt < CUTOFF_DATE:
+                    continue
+                # unidades sem alojamento 2027 lançado → ignora registros de 2027
+                if aloj_dt.year >= 2027 and normalize_unit(sheet) in SEM_ALOJ_2027:
                     continue
 
                 lote_recria   = str(row.iloc[C['lote_recria']]).strip()
