@@ -168,9 +168,13 @@ def ler_alojamento(uploaded_file):
                     continue
                 if not isinstance(abate_val, (datetime, pd.Timestamp)):
                     continue
-                # lote produção ainda não atribuído → usa lote recria como chave
+                # lote produção ainda não atribuído → usa lote recria ou gera chave pela data
                 if lote_prod in ('nan', 'NaN', ''):
-                    lote_prod = f"REC-{lote_recria}" if lote_recria not in ('nan','NaN','') else None
+                    if lote_recria not in ('nan', 'NaN', ''):
+                        lote_prod = f"REC-{lote_recria}"
+                    else:
+                        # lotes futuros sem numeração: identifica por unidade + data aloj + qty
+                        lote_prod = f"{unit}-{aloj_dt.strftime('%d%m%y')}-{int(float(qty_val))}"
                 if not lote_prod:
                     continue
 
