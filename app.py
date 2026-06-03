@@ -94,6 +94,19 @@ def get_linhagem(raca):
         return "ROSS"
     return "COBB"
 
+def week_start_pluma(dt):
+    """Semana Pluma: começa na quinta-feira, termina na quarta-feira."""
+    if isinstance(dt, pd.Timestamp):
+        dt = dt.to_pydatetime()
+    days_since_thu = (dt.weekday() - 3) % 7
+    return (dt - timedelta(days=days_since_thu)).date()
+
+def week_label(dt):
+    """Rótulo da semana: 'Qui DD/MM - Qua DD/MM/YYYY'"""
+    ini = week_start_pluma(dt)
+    fim = ini + timedelta(days=6)
+    return f"{ini.strftime('%d/%m')} – {fim.strftime('%d/%m/%Y')}"
+
 def fmt_n(v):
     try:
         return f"{int(v):,}".replace(",", ".")
@@ -196,11 +209,13 @@ def calcular_projecao(lotes):
             pos, apr, viab = curva[sem]
             aves  = femeas * (viab / 100)
             ovos  = aves * (pos / 100) * (apr / 100) * 7
+            sem_pluma = week_start_pluma(dt_sem)
             semanas_lote.append(dict(
                 lote=l['lote'], lote_recria=l['lote_recria'],
                 granja=l['granja'], raca=l['raca'], linhagem=l['linhagem'],
                 femeas=femeas, dt_aloj=l['aloj_dt'], unidade=l['unidade'],
                 semana=sem, dt_sem=dt_sem,
+                sem_pluma=sem_pluma,
                 ano=dt_sem.year, mes=dt_sem.month,
                 pos=pos, ovos_incub=ovos,
             ))
@@ -336,6 +351,41 @@ fig.update_layout(
     legend=dict(orientation="h", y=1.1),
     yaxis=dict(tickformat=",.0f"))
 st.plotly_chart(fig, use_container_width=True)
+
+# Curva semanal (semana Pluma: Qui → Qua)
+st.subheader("📅 Projeção Semanal — Semana Pluma (Qui → Qua)")
+grp_sem = (
+    proj.groupby("sem_pluma")["ovos_incub"].sum()
+    .reset_index()
+    .sort_values("sem_pluma")
+)
+grp_sem["sem_pluma"] = pd.to_datetime(grp_sem["sem_pluma"])
+hoje_thu = pd.Timestamp(week_start_pluma(HOJE))
+
+fig_sem = go.Figure()
+fig_sem.add_trace(go.Bar(
+    x=grp_sem[grp_sem["sem_pluma"] < hoje_thu]["sem_pluma"],
+    y=grp_sem[grp_sem["sem_pluma"] < hoje_thu]["ovos_incub"].round(),
+    name="Realizado", marker_color="#185FA5"))
+fig_sem.add_trace(go.Bar(
+    x=grp_sem[grp_sem["sem_pluma"] >= hoje_thu]["sem_pluma"],
+    y=grp_sem[grp_sem["sem_pluma"] >= hoje_thu]["ovos_incub"].round(),
+    name="Projetado", marker_color="#85B7EB"))
+fig_sem.add_shape(type="line",
+    x0=str(hoje_thu.date()), x1=str(hoje_thu.date()),
+    y0=0, y1=1, yref="paper",
+    line=dict(dash="dash", color="#aaa", width=1))
+fig_sem.add_annotation(x=str(hoje_thu.date()), y=1, yref="paper",
+    text="hoje", showarrow=False, yanchor="bottom",
+    font=dict(size=11, color="#888"))
+fig_sem.update_layout(
+    height=320, margin=dict(l=60, r=20, t=20, b=40),
+    plot_bgcolor="#fff", paper_bgcolor="#fff",
+    barmode="stack",
+    legend=dict(orientation="h", y=1.1),
+    xaxis=dict(tickformat="%d/%m/%Y", dtick="M1"),
+    yaxis=dict(tickformat=",.0f"))
+st.plotly_chart(fig_sem, use_container_width=True)
 
 # Por unidade (somente no modo Todas)
 if unidade_view == "Todas":
