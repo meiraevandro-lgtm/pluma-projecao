@@ -280,8 +280,6 @@ if df_raw is not None:
             x=top10["total_ovos"].round(), y=top10["lote"],
             orientation="h",
             marker_color=[cores.get(r,"#888")+"99" for r in top10["raca"]],
-            text=top10["total_ovos"].apply(lambda v: f"{v/1000:.0f}k"),
-            textposition="outside",
         ))
         fig3.update_layout(title="Top 10 lotes por volume", height=280,
             margin=dict(l=80,r=60,t=40,b=30),
