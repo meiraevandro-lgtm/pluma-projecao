@@ -362,7 +362,7 @@ fig.add_annotation(x=str(hm.date()), y=1, yref="paper",
                    text="hoje", showarrow=False, yanchor="bottom",
                    font=dict(size=11, color="#888"))
 fig.update_layout(
-    title=f"Curva consolidada — {'Todas as unidades' if unidade_view == 'Todas' else unidade_view}",
+    title=f"Curva consolidada — {', '.join(unidades_sel) if len(unidades_sel) <= 3 else f'{len(unidades_sel)} unidades'}",
     height=350, margin=dict(l=60, r=20, t=60, b=40),
     plot_bgcolor="#fff", paper_bgcolor="#fff",
     legend=dict(orientation="h", y=1.1),
