@@ -64,6 +64,7 @@ CUTOFF_DATE = pd.Timestamp('2025-01-01')
 COL_DEFAULT = dict(
     aloj=1, lote_recria=3, granja_recria=6,
     raca=11, transfer=13, lote_prod=14,
+    granja_prod=16,                          # granja de produção (fixa após semana 23)
     qty=18, abate_dt=19, idade_inicio=22,
 )
 
@@ -71,6 +72,7 @@ COL_DEFAULT = dict(
 COL_DF = dict(
     aloj=2, lote_recria=4, granja_recria=7,
     raca=12, transfer=14, lote_prod=15,
+    granja_prod=17,                          # granja de produção DF
     qty=18, abate_dt=19, idade_inicio=25,
 )
 
@@ -144,6 +146,7 @@ def ler_alojamento(uploaded_file):
 
                 lote_recria   = str(row.iloc[C['lote_recria']]).strip()
                 granja_recria = str(row.iloc[C['granja_recria']]).strip()
+                granja_prod   = str(row.iloc[C['granja_prod']]).strip()
                 raca          = str(row.iloc[C['raca']]).strip()
                 transfer_val  = row.iloc[C['transfer']]
                 qty_val       = row.iloc[C['qty']]
@@ -170,11 +173,16 @@ def ler_alojamento(uploaded_file):
                 if abate <= transfer:
                     continue
 
+                if granja_prod in ('nan', 'NaN', ''):
+                    granja_prod = granja_recria
+
                 todos_lotes.append(dict(
                     unidade=unit,
                     lote=lote_prod,
                     lote_recria=lote_recria,
-                    granja=granja_recria,
+                    granja_recria=granja_recria,
+                    granja_prod=granja_prod,
+                    granja=granja_recria,           # chave principal = recria
                     raca=raca,
                     linhagem=get_linhagem(raca),
                     aloj_dt=aloj_dt,
@@ -213,9 +221,14 @@ def calcular_projecao(lotes):
             aves  = femeas * (viab / 100)
             ovos  = aves * (pos / 100) * (apr / 100) * 7
             sem_pluma = week_start_pluma(dt_sem)
+            # até sem 23 usa granja recria; após usa granja produção (fixa)
+            granja_sem = l['granja_recria'] if sem <= 23 else l['granja_prod']
             semanas_lote.append(dict(
                 lote=l['lote'], lote_recria=l['lote_recria'],
-                granja=l['granja'], raca=l['raca'], linhagem=l['linhagem'],
+                granja=granja_sem,
+                granja_recria=l['granja_recria'],
+                granja_prod=l['granja_prod'],
+                raca=l['raca'], linhagem=l['linhagem'],
                 femeas=femeas, dt_aloj=l['aloj_dt'], unidade=l['unidade'],
                 semana=sem, dt_sem=dt_sem,
                 sem_pluma=sem_pluma,
@@ -236,7 +249,10 @@ def calcular_projecao(lotes):
 
         resumo_rows.append(dict(
             unidade=l['unidade'], lote=l['lote'], lote_recria=l['lote_recria'],
-            granja=l['granja'], raca=l['raca'], linhagem=l['linhagem'],
+            granja=l['granja_recria'],
+            granja_recria=l['granja_recria'],
+            granja_prod=l['granja_prod'],
+            raca=l['raca'], linhagem=l['linhagem'],
             femeas=femeas, dt_aloj=l['aloj_dt'],
             sem_atual=sem_atual, pico_pct=pico['pos'],
             pico_sem=pico['semana'], pico_dt=pico['dt_sem'],
@@ -486,15 +502,15 @@ st.markdown("---")
 
 # Tabela completa de lotes
 st.subheader("Todos os lotes")
-df_tab = res[["unidade","lote","lote_recria","granja","linhagem","dt_aloj",
+df_tab = res[["unidade","lote","lote_recria","granja_recria","granja_prod","linhagem","dt_aloj",
               "femeas","sem_atual","pico_sem","pico_dt","pico_pct","total_ovos"]].copy()
 df_tab["dt_aloj"]    = pd.to_datetime(df_tab["dt_aloj"]).dt.strftime("%d/%m/%Y")
 df_tab["pico_dt"]    = pd.to_datetime(df_tab["pico_dt"]).dt.strftime("%d/%m/%Y")
 df_tab["pico_pct"]   = df_tab["pico_pct"].apply(lambda v: f"{v:.1f}%")
 df_tab["femeas"]     = df_tab["femeas"].apply(fmt_n)
 df_tab["total_ovos"] = df_tab["total_ovos"].apply(lambda v: f"{v:,.0f}".replace(",","."))
-df_tab.columns = ["Unidade","Lote Prod.","Lote Recria","Granja Recria","Linhagem",
-                  "Dt. Aloj.","Fêmeas","Sem. atual","Sem. pico","Data pico","% pico","Ovos proj."]
+df_tab.columns = ["Unidade","Lote Prod.","Lote Recria","Granja Recria","Granja Produção",
+                  "Linhagem","Dt. Aloj.","Fêmeas","Sem. atual","Sem. pico","Data pico","% pico","Ovos proj."]
 st.dataframe(df_tab.sort_values("Sem. atual", ascending=False),
              use_container_width=True, hide_index=True)
 
