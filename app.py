@@ -237,8 +237,12 @@ if df_raw is not None:
     fig.add_trace(go.Scatter(x=futuro["periodo"], y=futuro["ovos_incub"].round(),
         mode="lines+markers", name="Projetado",
         line=dict(color="#85B7EB", width=2, dash="dot"), marker=dict(size=4)))
-    fig.add_vline(x=str(hm.date()), line_dash="dash", line_color="#aaa",
-                  annotation_text="hoje")
+    fig.add_shape(type="line", x0=str(hm.date()), x1=str(hm.date()),
+                  y0=0, y1=1, yref="paper",
+                  line=dict(dash="dash", color="#aaa", width=1))
+    fig.add_annotation(x=str(hm.date()), y=1, yref="paper",
+                       text="hoje", showarrow=False,
+                       yanchor="bottom", font=dict(size=11, color="#888"))
     fig.update_layout(
         title="Curva consolidada — ovos incubáveis por mês",
         xaxis_title="Mês", yaxis_title="Ovos incubáveis",
@@ -319,5 +323,3 @@ if df_raw is not None:
 
 else:
     st.info("Faça upload do Excel ou cole os dados para começar.")
-   
-   
