@@ -68,7 +68,7 @@ COL_DEFAULT = dict(
     aloj=1, lote_recria=3, granja_recria=6,
     raca=11, transfer=13, lote_prod=14,
     granja_prod=16,                          # granja de produção (fixa após semana 23)
-    qty=18, abate_dt=19, idade_inicio=22,
+    qty=18, qty_recria=8, abate_dt=19, idade_inicio=22,
 )
 
 # Pluma DF: coluna extra no início + inicia produção na semana 25
@@ -76,7 +76,7 @@ COL_DF = dict(
     aloj=2, lote_recria=4, granja_recria=7,
     raca=12, transfer=14, lote_prod=15,
     granja_prod=17,                          # granja de produção DF
-    qty=18, abate_dt=19, idade_inicio=25,
+    qty=18, qty_recria=9, abate_dt=19, idade_inicio=25,
 )
 
 SHEET_COLS = {'Pluma DF': COL_DF}
@@ -156,6 +156,9 @@ def ler_alojamento(uploaded_file):
                 raca          = str(row.iloc[C['raca']]).strip()
                 transfer_val  = row.iloc[C['transfer']]
                 qty_val       = row.iloc[C['qty']]
+                # fallback: usa qty de recria quando qty produção está vazia
+                if pd.isna(qty_val) or float(qty_val) <= 0:
+                    qty_val = row.iloc[C['qty_recria']]
                 abate_val     = row.iloc[C['abate_dt']]
                 lote_prod     = str(row.iloc[C['lote_prod']]).strip()
                 idade_inicio  = C['idade_inicio']
