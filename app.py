@@ -6,7 +6,7 @@ import math
 
 st.set_page_config(
     page_title="Projeção de Ovos — Grupo Pluma",
-    page_icon="🐓",
+    page_icon="logo.png",
     layout="wide",
 )
 
@@ -274,8 +274,12 @@ def calcular_projecao(lotes):
 
 # ── Interface ────────────────────────────────────────────────────────────────
 
-st.title("🐓 Projeção de Ovos — Grupo Pluma")
-st.caption(f"Curvas oficiais COBB e ROSS · {HOJE.strftime('%d/%m/%Y')} · Alojamentos a partir de 01/01/2025")
+col_logo, col_title = st.columns([1, 8])
+with col_logo:
+    st.image("logo.png", width=110)
+with col_title:
+    st.markdown("## Projeção de Ovos — Grupo Pluma")
+    st.caption(f"Curvas oficiais COBB e ROSS · {HOJE.strftime('%d/%m/%Y')} · Alojamentos a partir de 01/01/2025")
 st.markdown("---")
 
 # ── Upload único ─────────────────────────────────────────────────────────────
