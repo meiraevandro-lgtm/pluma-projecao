@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from io import StringIO
 import math
 
 st.set_page_config(
@@ -48,24 +47,19 @@ CURVA_ROSS = {
 }
 
 CORES_UNIDADE = {
-    "Pluma PR+SC": "#1a6fbf",
-    "Pluma SP":    "#e07b2a",
-    "Pluma CV":    "#2eaa5f",
-    "Pluma MI":    "#9b59b6",
-    "Pluma DF":    "#e74c3c",
-    "Pluma G3":    "#16a085",
-    "Argentina":   "#2c3e50",
-    "Plusval":     "#f39c12",
-    "Cassilândia": "#8e44ad",
-    "PlumaGen":    "#27ae60",
+    "Pluma PR+SC": "#1a6fbf","Pluma SP": "#e07b2a","Pluma CV": "#2eaa5f",
+    "Pluma MI": "#9b59b6","Pluma DF": "#e74c3c","Pluma G3": "#16a085",
+    "Argentina": "#2c3e50","Plusval": "#f39c12","Cassilândia": "#8e44ad",
+    "PlumaGen": "#27ae60",
 }
-CORES_RGBA = {k: v for k, v in [
-    ("Pluma PR+SC","rgba(26,111,191,0.6)"),("Pluma SP","rgba(224,123,42,0.6)"),
-    ("Pluma CV","rgba(46,170,95,0.6)"),("Pluma MI","rgba(155,89,182,0.6)"),
-    ("Pluma DF","rgba(231,76,60,0.6)"),("Pluma G3","rgba(22,160,133,0.6)"),
-    ("Argentina","rgba(44,62,80,0.6)"),("Plusval","rgba(243,156,18,0.6)"),
-    ("Cassilândia","rgba(142,68,173,0.6)"),("PlumaGen","rgba(39,174,96,0.6)"),
-]}
+CORES_RGBA = {
+    "Pluma PR+SC":"rgba(26,111,191,0.6)","Pluma SP":"rgba(224,123,42,0.6)",
+    "Pluma CV":"rgba(46,170,95,0.6)","Pluma MI":"rgba(155,89,182,0.6)",
+    "Pluma DF":"rgba(231,76,60,0.6)","Pluma G3":"rgba(22,160,133,0.6)",
+    "Argentina":"rgba(44,62,80,0.6)","Plusval":"rgba(243,156,18,0.6)",
+    "Cassilândia":"rgba(142,68,173,0.6)","PlumaGen":"rgba(39,174,96,0.6)",
+}
+RACAS_DISP = ["COBB", "ROSS", "HUBBARD"]
 
 def get_curva(raca):
     r = str(raca).upper()
@@ -77,9 +71,7 @@ def parse_qtde(v):
     if v is None:
         return 0
     if isinstance(v, (int, float)):
-        if math.isnan(v):
-            return 0
-        return int(v)
+        return 0 if math.isnan(v) else int(v)
     s = str(v).strip()
     if s in ("", "nan", "None", "NaT", "NaN"):
         return 0
@@ -102,7 +94,8 @@ def parse_data(v):
             pass
     return None
 
-def processar(df, unidade):
+def extrair_lotes(df):
+    """Lê o Excel de alojamento e devolve lista de dicts com campos básicos."""
     col_map = {
         "Dt. Aloj.":"dt_aloj","Dt. Alojamento":"dt_aloj",
         "Lote":"lote","Recria":"granja",
@@ -130,20 +123,22 @@ def processar(df, unidade):
         key = lote + "||" + granja
         if key not in mapa:
             mapa[key] = {"lote":lote,"granja":granja,"nucleo":nucleo,
-                         "raca":raca,"dt_aloj":dt,"femeas":0,"unidade":unidade}
+                         "raca":raca,"dt_aloj":dt,"femeas":0}
         mapa[key]["femeas"] += qtde
+    return list(mapa.values())
 
-    lotes = list(mapa.values())
-    proj  = []
+def calcular_projecao(lotes, unidade):
+    """Recebe lista de dicts de lotes e gera DataFrames resumo + projeção."""
+    proj = []
     for l in lotes:
         curva = get_curva(l["raca"])
-        for sem in range(23,67):
+        for sem in range(23, 67):
             if sem not in curva:
                 continue
-            pos,apr,viab = curva[sem]
+            pos, apr, viab = curva[sem]
             dt_sem = l["dt_aloj"] + timedelta(weeks=sem)
-            aves   = l["femeas"] * (viab/100)
-            ovos_i = aves * (pos/100) * 7 * (apr/100)
+            aves   = l["femeas"] * (viab / 100)
+            ovos_i = aves * (pos / 100) * 7 * (apr / 100)
             proj.append({
                 "lote":l["lote"],"granja":l["granja"],"raca":l["raca"],
                 "femeas":l["femeas"],"dt_aloj":l["dt_aloj"],"unidade":unidade,
@@ -157,15 +152,15 @@ def processar(df, unidade):
         lp = [p for p in proj if p["lote"]==l["lote"] and p["granja"]==l["granja"]]
         if not lp:
             continue
-        pico = max(lp, key=lambda x: x["pos"])
-        total_ovos  = sum(p["ovos_incub"] for p in lp)
-        sem_atual   = max(0,(HOJE-l["dt_aloj"]).days//7)
-        sems_pico   = max(0,pico["semana"]-sem_atual)
-        resumo.append({**l,
+        pico       = max(lp, key=lambda x: x["pos"])
+        total_ovos = sum(p["ovos_incub"] for p in lp)
+        sem_atual  = max(0, (HOJE - l["dt_aloj"]).days // 7)
+        sems_pico  = max(0, pico["semana"] - sem_atual)
+        resumo.append({**l, "unidade":unidade,
             "sem_atual":sem_atual,"pico_pct":pico["pos"],
             "pico_sem":pico["semana"],"pico_dt":pico["dt_sem"],
             "total_ovos":total_ovos,"sems_pico":sems_pico,
-            "alerta": 0<=sems_pico<=4 and sem_atual<66,
+            "alerta": 0 <= sems_pico <= 4 and sem_atual < 66,
         })
     return pd.DataFrame(resumo), pd.DataFrame(proj)
 
@@ -182,11 +177,12 @@ UNIDADES = ["Pluma PR+SC","Pluma SP","Pluma CV","Pluma MI","Pluma DF",
 
 if "dados_unidades" not in st.session_state:
     st.session_state.dados_unidades = {}
+if "lotes_editor" not in st.session_state:
+    st.session_state.lotes_editor = {}   # unidade -> lista de dicts editáveis
 
-# ── Upload múltiplo ──────────────────────────────────────────────────────────
-with st.expander("📂 Carregar arquivos por unidade", expanded=True):
-    st.markdown("Selecione a unidade e faça o upload do Excel correspondente.")
-    col_sel, col_up = st.columns([1,2])
+# ── Upload ───────────────────────────────────────────────────────────────────
+with st.expander("📂 Carregar / editar lotes por unidade", expanded=True):
+    col_sel, col_up = st.columns([1, 2])
     with col_sel:
         unidade_sel = st.selectbox("Unidade", UNIDADES)
     with col_up:
@@ -200,37 +196,98 @@ with st.expander("📂 Carregar arquivos por unidade", expanded=True):
                 df_raw = pd.read_csv(arquivo, sep="\t", encoding="utf-8-sig")
             else:
                 df_raw = pd.read_excel(arquivo)
-            df_res, df_proj = processar(df_raw, unidade_sel)
-            if not df_res.empty:
-                st.session_state.dados_unidades[unidade_sel] = {
-                    "res": df_res, "proj": df_proj}
-                st.success(f"✓ {unidade_sel} carregada — {len(df_res)} lotes")
+            lotes_raw = extrair_lotes(df_raw)
+            if lotes_raw:
+                st.session_state.lotes_editor[unidade_sel] = lotes_raw
+                st.success(f"✓ {len(lotes_raw)} lotes carregados de {unidade_sel} — revise e ajuste abaixo.")
             else:
                 st.warning("Nenhum lote válido encontrado.")
         except Exception as e:
-            st.error(f"Erro: {e}")
+            st.error(f"Erro ao ler arquivo: {e}")
 
-    # Status das unidades carregadas
+    # ── Tabela editável ──────────────────────────────────────────────────────
+    if unidade_sel in st.session_state.lotes_editor:
+        st.markdown(f"**✏️ Revise e ajuste os lotes de {unidade_sel} antes de projetar:**")
+        lotes_orig = st.session_state.lotes_editor[unidade_sel]
+
+        df_edit = pd.DataFrame([{
+            "Lote":      l["lote"],
+            "Granja":    l["granja"],
+            "Dt. Aloj.": l["dt_aloj"].strftime("%d/%m/%Y") if isinstance(l["dt_aloj"], datetime) else str(l["dt_aloj"]),
+            "Fêmeas":    l["femeas"],
+            "Linhagem":  l["raca"],
+        } for l in lotes_orig])
+
+        df_editado = st.data_editor(
+            df_edit,
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            column_config={
+                "Lote":      st.column_config.TextColumn("Lote"),
+                "Granja":    st.column_config.TextColumn("Granja"),
+                "Dt. Aloj.": st.column_config.TextColumn("Dt. Aloj.", help="Formato: DD/MM/AAAA"),
+                "Fêmeas":    st.column_config.NumberColumn("Fêmeas", min_value=0, step=1, format="%d"),
+                "Linhagem":  st.column_config.SelectboxColumn("Linhagem", options=RACAS_DISP),
+            },
+            key=f"editor_{unidade_sel}",
+        )
+
+        col_projetar, col_add, col_remove = st.columns([2, 1, 1])
+        with col_projetar:
+            if st.button(f"▶ Projetar {unidade_sel}", type="primary", use_container_width=True):
+                lotes_finais = []
+                erros = []
+                for i, row in df_editado.iterrows():
+                    lote  = str(row["Lote"]).strip()
+                    granja= str(row["Granja"]).strip()
+                    femeas= int(row["Fêmeas"]) if pd.notna(row["Fêmeas"]) else 0
+                    raca  = str(row["Linhagem"]).strip()
+                    dt    = parse_data(row["Dt. Aloj."])
+                    if not lote or femeas <= 0:
+                        continue
+                    if not dt:
+                        erros.append(f"Linha {i+1} ({lote}): data inválida '{row['Dt. Aloj.']}'")
+                        continue
+                    lotes_finais.append({"lote":lote,"granja":granja,"nucleo":"",
+                                         "raca":raca,"dt_aloj":dt,"femeas":femeas})
+                if erros:
+                    for e in erros:
+                        st.warning(e)
+                if lotes_finais:
+                    df_res, df_proj = calcular_projecao(lotes_finais, unidade_sel)
+                    st.session_state.dados_unidades[unidade_sel] = {"res":df_res,"proj":df_proj}
+                    st.success(f"✓ Projeção gerada — {len(lotes_finais)} lotes.")
+                    st.rerun()
+                else:
+                    st.error("Nenhum lote válido para projetar.")
+
+        with col_remove:
+            if st.button(f"🗑 Remover {unidade_sel}", use_container_width=True):
+                st.session_state.lotes_editor.pop(unidade_sel, None)
+                st.session_state.dados_unidades.pop(unidade_sel, None)
+                st.rerun()
+
+    # Status geral
     if st.session_state.dados_unidades:
         carregadas = list(st.session_state.dados_unidades.keys())
-        st.markdown("**Unidades carregadas:** " +
+        st.markdown("**Unidades projetadas:** " +
             " · ".join([f"🟢 {u}" for u in carregadas]))
         if st.button("🗑️ Limpar tudo"):
             st.session_state.dados_unidades = {}
+            st.session_state.lotes_editor   = {}
             st.rerun()
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
 if not st.session_state.dados_unidades:
-    st.info("Carregue pelo menos uma unidade para ver o dashboard.")
+    st.info("Carregue pelo menos uma unidade e clique em **▶ Projetar** para ver o dashboard.")
     st.stop()
 
 st.markdown("---")
 
-# Seletor de unidade (botões)
 unidades_disp = ["Todas"] + list(st.session_state.dados_unidades.keys())
 unidade_view  = st.radio("Visualizar", unidades_disp, horizontal=True)
 
-# Consolidar dados conforme seleção
 if unidade_view == "Todas":
     df_res_all  = pd.concat([d["res"]  for d in st.session_state.dados_unidades.values()], ignore_index=True)
     df_proj_all = pd.concat([d["proj"] for d in st.session_state.dados_unidades.values()], ignore_index=True)
@@ -238,7 +295,6 @@ else:
     df_res_all  = st.session_state.dados_unidades[unidade_view]["res"]
     df_proj_all = st.session_state.dados_unidades[unidade_view]["proj"]
 
-# Filtros secundários
 fc1, fc2, fc3 = st.columns(3)
 granjas = ["Todas"] + sorted(df_res_all["granja"].dropna().unique().tolist())
 racas   = ["Todas"] + sorted(df_res_all["raca"].dropna().unique().tolist())
@@ -253,16 +309,14 @@ if fil_granja != "Todas": res = res[res["granja"]==fil_granja]; proj = proj[proj
 if fil_raca   != "Todas": res = res[res["raca"]==fil_raca];     proj = proj[proj["raca"]==fil_raca]
 if fil_ano    != "Todos": proj = proj[proj["ano"]==int(fil_ano)]
 
-# KPIs
 alertas = res[res["alerta"]]
 k1,k2,k3,k4 = st.columns(4)
-k1.metric("Fêmeas no plantel",   fmt_n(res["femeas"].sum()))
-k2.metric("Lotes processados",   len(res))
-k3.metric("Ovos proj. (total)",  f"{res['total_ovos'].sum()/1e6:.1f}M")
-k4.metric("Alertas de pico",     len(alertas))
+k1.metric("Fêmeas no plantel",  fmt_n(res["femeas"].sum()))
+k2.metric("Lotes processados",  len(res))
+k3.metric("Ovos proj. (total)", f"{res['total_ovos'].sum()/1e6:.1f}M")
+k4.metric("Alertas de pico",    len(alertas))
 st.markdown("---")
 
-# Gráfico consolidado
 grp = proj.groupby(["ano","mes"])["ovos_incub"].sum().reset_index()
 grp["periodo"] = pd.to_datetime(
     grp["ano"].astype(str)+"-"+grp["mes"].astype(str).str.zfill(2)+"-01")
@@ -292,7 +346,6 @@ fig.update_layout(
     yaxis=dict(tickformat=",.0f"))
 st.plotly_chart(fig, use_container_width=True)
 
-# Se visão "Todas" → gráfico por unidade
 if unidade_view == "Todas":
     st.subheader("Por unidade")
     fig_u = go.Figure()
@@ -312,9 +365,8 @@ if unidade_view == "Todas":
         yaxis=dict(tickformat=",.0f"))
     st.plotly_chart(fig_u, use_container_width=True)
 
-# Gráficos secundários
 c_lin, c_top = st.columns(2)
-cores_raca = {"COBB":"#185FA5","ROSS":"#BA7517","HUBB":"#3B6D11"}
+cores_raca      = {"COBB":"#185FA5","ROSS":"#BA7517","HUBB":"#3B6D11"}
 cores_raca_rgba = {"COBB":"rgba(24,95,165,0.6)","ROSS":"rgba(186,117,23,0.6)","HUBB":"rgba(59,109,17,0.6)"}
 
 with c_lin:
@@ -351,7 +403,6 @@ with c_top:
         xaxis=dict(tickformat=",.0f"))
     st.plotly_chart(fig3, use_container_width=True)
 
-# Alertas
 st.markdown("---")
 st.subheader("⚠️ Alertas — pico nas próximas 4 semanas")
 if alertas.empty:
@@ -359,14 +410,13 @@ if alertas.empty:
 else:
     cols = ["unidade","lote","granja","raca","femeas","sems_pico","pico_dt","pico_pct"]
     df_al = alertas[cols].copy()
-    df_al["femeas"]   = df_al["femeas"].apply(fmt_n)
-    df_al["pico_dt"]  = pd.to_datetime(df_al["pico_dt"]).dt.strftime("%d/%m/%Y")
-    df_al["pico_pct"] = df_al["pico_pct"].apply(lambda v: f"{v:.1f}%")
-    df_al["sems_pico"]= df_al["sems_pico"].apply(lambda v: f"{int(v)} sem.")
+    df_al["femeas"]    = df_al["femeas"].apply(fmt_n)
+    df_al["pico_dt"]   = pd.to_datetime(df_al["pico_dt"]).dt.strftime("%d/%m/%Y")
+    df_al["pico_pct"]  = df_al["pico_pct"].apply(lambda v: f"{v:.1f}%")
+    df_al["sems_pico"] = df_al["sems_pico"].apply(lambda v: f"{int(v)} sem.")
     df_al.columns = ["Unidade","Lote","Granja","Linhagem","Fêmeas","Sem. p/ pico","Data pico","% pico"]
     st.dataframe(df_al, use_container_width=True, hide_index=True)
 
-# Tabela completa
 st.markdown("---")
 st.subheader("Todos os lotes")
 df_tab = res[["unidade","lote","granja","raca","dt_aloj","femeas",
