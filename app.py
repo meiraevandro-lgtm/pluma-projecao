@@ -159,7 +159,10 @@ def ler_alojamento(uploaded_file):
                     continue
                 if not isinstance(abate_val, (datetime, pd.Timestamp)):
                     continue
+                # lote produção ainda não atribuído → usa lote recria como chave
                 if lote_prod in ('nan', 'NaN', ''):
+                    lote_prod = f"REC-{lote_recria}" if lote_recria not in ('nan','NaN','') else None
+                if not lote_prod:
                     continue
 
                 transfer = pd.Timestamp(transfer_val)
@@ -313,7 +316,8 @@ with fc2: fil_lin      = st.selectbox("Linhagem", linhagens)
 with fc3: fil_ano_proj = st.selectbox("Ano projeção", anos_proj)
 with fc4:
     fil_anos_aloj = st.multiselect(
-        "Ano alojamento", anos_aloj, default=anos_aloj,
+        "Ano alojamento", anos_aloj,
+        default=anos_aloj,          # todos os anos selecionados por padrão
         help="Filtra lotes pelo ano em que foram alojados na recria")
 
 res  = df_res_v.copy()
