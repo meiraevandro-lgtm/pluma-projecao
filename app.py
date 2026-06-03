@@ -276,10 +276,11 @@ if df_raw is not None:
 
     with c_top:
         top10 = res.nlargest(10,"total_ovos")[["lote","total_ovos","raca"]]
-        fig3 = go.Figure(go.Bar(
+        cor_barras = {"COBB":"rgba(24,95,165,0.6)","ROSS":"rgba(186,117,23,0.6)","HUBB":"rgba(59,109,17,0.6)"}
+    fig3 = go.Figure(go.Bar(
             x=top10["total_ovos"].round(), y=top10["lote"],
             orientation="h",
-            marker_color=[cores.get(r,"#888")+"99" for r in top10["raca"]],
+            marker_color=[cor_barras.get(r,"rgba(128,128,128,0.6)") for r in top10["raca"]],
         ))
         fig3.update_layout(title="Top 10 lotes por volume", height=280,
             margin=dict(l=80,r=60,t=40,b=30),
