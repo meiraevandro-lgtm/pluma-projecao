@@ -530,21 +530,6 @@ st.plotly_chart(fig_lin, use_container_width=True)
 
 st.markdown("---")
 
-# Alertas
-st.subheader("⚠️ Alertas — pico nas próximas 4 semanas")
-if alertas.empty:
-    st.success("Nenhum lote entrando em pico nas próximas 4 semanas.")
-else:
-    df_al = alertas[["unidade","lote","lote_recria","granja","linhagem","femeas","sems_pico","pico_dt","pico_pct"]].copy()
-    df_al["femeas"]   = df_al["femeas"].apply(fmt_n)
-    df_al["pico_dt"]  = pd.to_datetime(df_al["pico_dt"]).dt.strftime("%d/%m/%Y")
-    df_al["pico_pct"] = df_al["pico_pct"].apply(lambda v: f"{v:.1f}%")
-    df_al["sems_pico"]= df_al["sems_pico"].apply(lambda v: f"{int(v)} sem.")
-    df_al.columns = ["Unidade","Lote Prod.","Lote Recria","Granja Recria","Linhagem","Fêmeas","Sem. p/ pico","Data pico","% pico"]
-    st.dataframe(df_al, use_container_width=True, hide_index=True)
-
-st.markdown("---")
-
 # Tabela completa de lotes
 st.subheader("Todos os lotes")
 df_tab = res[["unidade","lote","lote_recria","granja_recria","granja_prod","linhagem","dt_aloj",
