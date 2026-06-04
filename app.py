@@ -75,11 +75,19 @@ COL_DEFAULT = dict(
 COL_DF = dict(
     aloj=2, lote_recria=4, granja_recria=7,
     raca=12, transfer=14, lote_prod=15,
-    granja_prod=17,                          # granja de produção DF
+    granja_prod=17,
     qty=18, qty_recria=9, abate_dt=19, idade_inicio=25,
 )
 
-SHEET_COLS = {'Pluma DF': COL_DF}
+# Cassilândia: sem coluna Núcleo — todas deslocadas -2 a partir da col 7
+COL_CASSIL = dict(
+    aloj=1, lote_recria=3, granja_recria=6,
+    raca=10, transfer=12, lote_prod=13,
+    granja_prod=15,
+    qty=16, qty_recria=7, abate_dt=17, idade_inicio=22,
+)
+
+SHEET_COLS = {'Pluma DF': COL_DF, 'Cassilândia': COL_CASSIL}
 
 UNIT_SHEETS = [
     'Pluma PR+SC', 'Pluma SP', 'Pluma CV', 'Pluma MI', 'Pluma DF',
