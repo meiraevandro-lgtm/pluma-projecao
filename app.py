@@ -487,9 +487,16 @@ fig_sem.update_layout(
     yaxis=dict(tickformat=",.0f"))
 st.plotly_chart(fig_sem, use_container_width=True)
 
-# ── Barras por linhagem (empilhadas com % de cada uma) ──────────────────────
-st.markdown("#### 🧬 Projeção por Linhagem — participação mensal")
+# ── Barras mensais: Total ou Por Linhagem ────────────────────────────────────
 CORES_LIN = {"COBB": "#185FA5", "ROSS": "#BA7517", "HUBBARD": "#2eaa5f"}
+
+col_tit, col_btn = st.columns([3, 2])
+with col_tit:
+    st.markdown("#### 📊 Projeção Mensal")
+with col_btn:
+    modo_mensal = st.radio("", ["Total", "Por Linhagem"],
+                           horizontal=True, key="modo_mensal",
+                           label_visibility="collapsed")
 
 # pivot mensal por linhagem
 grp_lin = (
@@ -500,30 +507,49 @@ grp_lin["periodo"] = pd.to_datetime(
     grp_lin["ano"].astype(str) + "-" + grp_lin["mes"].astype(str).str.zfill(2) + "-01")
 grp_lin = grp_lin.sort_values("periodo")
 
-# total por período para calcular %
 total_periodo = grp_lin.groupby("periodo")["ovos_incub"].sum().rename("total")
 grp_lin = grp_lin.join(total_periodo, on="periodo")
 grp_lin["pct"] = (grp_lin["ovos_incub"] / grp_lin["total"] * 100).round(1)
 
 fig_lin = go.Figure()
-for lin in ["COBB", "ROSS", "HUBBARD"]:
-    sub = grp_lin[grp_lin["linhagem"] == lin]
-    if sub.empty:
-        continue
-    fig_lin.add_trace(go.Bar(
-        x=sub["periodo"],
-        y=sub["ovos_incub"].round(),
-        name=lin,
-        marker_color=CORES_LIN.get(lin, "#888"),
-        customdata=sub[["pct"]],
-        hovertemplate="%{x|%b/%Y}<br>%{y:,.0f} ovos<br><b>%{customdata[0]:.1f}%</b> do total<extra></extra>",
-    ))
+hm_mes = pd.Timestamp(HOJE.year, HOJE.month, 1)
 
+if modo_mensal == "Total":
+    grp_tot = grp_lin.groupby("periodo")["ovos_incub"].sum().reset_index()
+    fig_lin.add_trace(go.Bar(
+        x=grp_tot[grp_tot["periodo"] < hm_mes]["periodo"],
+        y=grp_tot[grp_tot["periodo"] < hm_mes]["ovos_incub"].round(),
+        name="Realizado", marker_color="#1F3864"))
+    fig_lin.add_trace(go.Bar(
+        x=grp_tot[grp_tot["periodo"] >= hm_mes]["periodo"],
+        y=grp_tot[grp_tot["periodo"] >= hm_mes]["ovos_incub"].round(),
+        name="Projetado", marker_color="#85B7EB"))
+else:
+    for lin in ["COBB", "ROSS", "HUBBARD"]:
+        sub = grp_lin[grp_lin["linhagem"] == lin]
+        if sub.empty:
+            continue
+        fig_lin.add_trace(go.Bar(
+            x=sub["periodo"],
+            y=sub["ovos_incub"].round(),
+            name=lin,
+            marker_color=CORES_LIN.get(lin, "#888"),
+            customdata=sub[["pct"]],
+            hovertemplate="%{x|%b/%Y}<br>%{y:,.0f} ovos<br><b>%{customdata[0]:.1f}%</b> do total<extra></extra>",
+        ))
+
+fig_lin.add_shape(type="line",
+    x0=str(hm_mes.date()), x1=str(hm_mes.date()),
+    y0=0, y1=1, yref="paper",
+    line=dict(dash="dash", color="#aaa", width=1))
+fig_lin.add_annotation(x=str(hm_mes.date()), y=1, yref="paper",
+    text="hoje", showarrow=False, yanchor="bottom",
+    font=dict(size=11, color="#888"))
 fig_lin.update_layout(
     barmode="stack",
-    height=320, margin=dict(l=60, r=20, t=20, b=40),
+    height=340, margin=dict(l=60, r=20, t=10, b=40),
     plot_bgcolor="#fff", paper_bgcolor="#fff",
-    legend=dict(orientation="h", y=1.1),
+    legend=dict(orientation="h", y=1.08),
     xaxis=dict(tickformat="%b/%Y", dtick="M3"),
     yaxis=dict(tickformat=",.0f"))
 st.plotly_chart(fig_lin, use_container_width=True)
