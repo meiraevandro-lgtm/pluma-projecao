@@ -557,7 +557,13 @@ st.plotly_chart(fig_lin, use_container_width=True)
 st.markdown("---")
 
 # ── Gráfico de alojamento semanal ────────────────────────────────────────────
-st.markdown("#### 🐣 Alojamentos Semanais — Fêmeas alojadas por semana Pluma")
+col_aloj_tit, col_aloj_btn = st.columns([3, 2])
+with col_aloj_tit:
+    st.markdown("#### 🐣 Alojamentos Semanais — Fêmeas por semana Pluma")
+with col_aloj_btn:
+    modo_aloj = st.radio("", ["Total", "Por Unidade"],
+                         horizontal=True, key="modo_aloj",
+                         label_visibility="collapsed")
 
 def week_start_from_dt(dt):
     if isinstance(dt, pd.Timestamp):
@@ -565,33 +571,36 @@ def week_start_from_dt(dt):
     days = (dt.weekday() - 3) % 7
     return (dt - timedelta(days=days)).date()
 
-# Usar df_res_full para montar o gráfico de alojamento
 aloj_data = df_res_full[df_res_full['unidade'].isin(unidades_sel)].copy()
 if fil_anos_aloj:
     aloj_data = aloj_data[aloj_data['dt_aloj'].apply(lambda d: d.year).isin(fil_anos_aloj)]
 
-aloj_data['sem_aloj'] = aloj_data['dt_aloj'].apply(week_start_from_dt)
-aloj_data['sem_aloj'] = pd.to_datetime(aloj_data['sem_aloj'])
-
-grp_aloj = aloj_data.groupby(['sem_aloj','unidade'])['femeas'].sum().unstack(fill_value=0)
-grp_aloj_total = grp_aloj.sum(axis=1).reset_index()
-grp_aloj_total.columns = ['semana','femeas']
+aloj_data['sem_aloj'] = pd.to_datetime(aloj_data['dt_aloj'].apply(week_start_from_dt))
+grp_aloj  = aloj_data.groupby(['sem_aloj','unidade'])['femeas'].sum().unstack(fill_value=0)
+tot_aloj  = grp_aloj.sum(axis=1)
 
 fig_aloj = go.Figure()
-for u in sorted(aloj_data['unidade'].unique()):
-    if u not in grp_aloj.columns: continue
+
+if modo_aloj == "Total":
     fig_aloj.add_trace(go.Bar(
-        x=grp_aloj.index,
-        y=grp_aloj[u],
-        name=u,
-        marker_color=CORES_UNIDADE.get(u, '#888'),
+        x=tot_aloj.index, y=tot_aloj.values,
+        name="Total", marker_color="#1F3864",
+        hovertemplate="%{x|%d/%m/%Y}<br><b>%{y:,.0f} fêmeas</b><extra></extra>",
     ))
+else:
+    for u in sorted(aloj_data['unidade'].unique()):
+        if u not in grp_aloj.columns: continue
+        fig_aloj.add_trace(go.Bar(
+            x=grp_aloj.index, y=grp_aloj[u],
+            name=u, marker_color=CORES_UNIDADE.get(u, '#888'),
+            hovertemplate=f"{u}<br>%{{x|%d/%m/%Y}}<br><b>%{{y:,.0f}} fêmeas</b><extra></extra>",
+        ))
 
 fig_aloj.update_layout(
     barmode='stack',
-    height=320, margin=dict(l=60, r=20, t=20, b=40),
+    height=340, margin=dict(l=60, r=20, t=10, b=40),
     plot_bgcolor="#fff", paper_bgcolor="#fff",
-    legend=dict(orientation="h", y=1.1),
+    legend=dict(orientation="h", y=1.08),
     xaxis=dict(tickformat="%d/%m/%Y", dtick="M1"),
     yaxis=dict(tickformat=",.0f", title="Fêmeas alojadas"),
 )
