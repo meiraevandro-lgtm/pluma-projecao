@@ -556,9 +556,9 @@ st.plotly_chart(fig_lin, use_container_width=True)
 
 st.markdown("---")
 
-# Tabela completa de lotes
+# Tabela completa de lotes — limitado a sem_atual <= 68
 st.subheader("Todos os lotes")
-df_tab = res[["unidade","lote","lote_recria","granja_recria","granja_prod","linhagem","dt_aloj",
+df_tab = res[res["sem_atual"] <= 68][["unidade","lote","lote_recria","granja_recria","granja_prod","linhagem","dt_aloj",
               "femeas","sem_atual","pico_sem","pico_dt","pico_pct","total_ovos"]].copy()
 df_tab["dt_aloj"]    = pd.to_datetime(df_tab["dt_aloj"]).dt.strftime("%d/%m/%Y")
 df_tab["pico_dt"]    = pd.to_datetime(df_tab["pico_dt"]).dt.strftime("%d/%m/%Y")
