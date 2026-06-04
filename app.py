@@ -487,23 +487,44 @@ fig_sem.update_layout(
     yaxis=dict(tickformat=",.0f"))
 st.plotly_chart(fig_sem, use_container_width=True)
 
-# ── Curva por linhagem ───────────────────────────────────────────────────────
-st.markdown("#### 🧬 Projeção por Linhagem")
+# ── Barras por linhagem (empilhadas com % de cada uma) ──────────────────────
+st.markdown("#### 🧬 Projeção por Linhagem — participação mensal")
 CORES_LIN = {"COBB": "#185FA5", "ROSS": "#BA7517", "HUBBARD": "#2eaa5f"}
+
+# pivot mensal por linhagem
+grp_lin = (
+    proj.groupby(["ano", "mes", "linhagem"])["ovos_incub"].sum()
+    .reset_index()
+)
+grp_lin["periodo"] = pd.to_datetime(
+    grp_lin["ano"].astype(str) + "-" + grp_lin["mes"].astype(str).str.zfill(2) + "-01")
+grp_lin = grp_lin.sort_values("periodo")
+
+# total por período para calcular %
+total_periodo = grp_lin.groupby("periodo")["ovos_incub"].sum().rename("total")
+grp_lin = grp_lin.join(total_periodo, on="periodo")
+grp_lin["pct"] = (grp_lin["ovos_incub"] / grp_lin["total"] * 100).round(1)
+
 fig_lin = go.Figure()
-for lin in sorted(proj['linhagem'].dropna().unique()):
-    sub = proj[proj['linhagem'] == lin].groupby(["ano","mes"])["ovos_incub"].sum().reset_index()
-    sub["periodo"] = pd.to_datetime(
-        sub["ano"].astype(str) + "-" + sub["mes"].astype(str).str.zfill(2) + "-01")
-    sub = sub.sort_values("periodo")
-    fig_lin.add_trace(go.Scatter(
-        x=sub["periodo"], y=sub["ovos_incub"].round(),
-        mode="lines", name=lin,
-        line=dict(color=CORES_LIN.get(lin, "#888"), width=2)))
+for lin in ["COBB", "ROSS", "HUBBARD"]:
+    sub = grp_lin[grp_lin["linhagem"] == lin]
+    if sub.empty:
+        continue
+    fig_lin.add_trace(go.Bar(
+        x=sub["periodo"],
+        y=sub["ovos_incub"].round(),
+        name=lin,
+        marker_color=CORES_LIN.get(lin, "#888"),
+        customdata=sub[["pct"]],
+        hovertemplate="%{x|%b/%Y}<br>%{y:,.0f} ovos<br><b>%{customdata[0]:.1f}%</b> do total<extra></extra>",
+    ))
+
 fig_lin.update_layout(
-    height=300, margin=dict(l=60, r=20, t=20, b=40),
+    barmode="stack",
+    height=320, margin=dict(l=60, r=20, t=20, b=40),
     plot_bgcolor="#fff", paper_bgcolor="#fff",
-    legend=dict(orientation="h", y=1.12),
+    legend=dict(orientation="h", y=1.1),
+    xaxis=dict(tickformat="%b/%Y", dtick="M3"),
     yaxis=dict(tickformat=",.0f"))
 st.plotly_chart(fig_lin, use_container_width=True)
 
