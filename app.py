@@ -217,7 +217,27 @@ def ler_alojamento(uploaded_file):
             except Exception:
                 continue
 
-    return todos_lotes
+    # ── Deduplicação: remove lotes duplicados por transferência entre unidades ──
+    # Um lote pode aparecer na aba de origem E na aba de destino.
+    # Chave de unicidade: granja_prod + qty + abate + transfer (mesma produção)
+    vistos = set()
+    lotes_dedup = []
+    for l in todos_lotes:
+        chave = (
+            l['granja_prod'].strip().lower(),
+            round(l['femeas']),
+            l['abate'].date(),
+            l['transfer'].date(),
+        )
+        if chave not in vistos:
+            vistos.add(chave)
+            lotes_dedup.append(l)
+
+    removidos = len(todos_lotes) - len(lotes_dedup)
+    if removidos > 0:
+        print(f"[INFO] {removidos} lotes duplicados removidos (transferências entre unidades)")
+
+    return lotes_dedup
 
 # ── Cálculo de projeção ──────────────────────────────────────────────────────
 
