@@ -295,28 +295,52 @@ with col_title:
     st.caption(f"Curvas oficiais COBB e ROSS · {HOJE.strftime('%d/%m/%Y')} · Alojamentos a partir de 01/01/2025")
 st.markdown("---")
 
-# ── Upload único ─────────────────────────────────────────────────────────────
+# ── Carregamento automático + opção de atualizar ─────────────────────────────
 
-with st.expander("📂 Carregar arquivo de alojamento", expanded=True):
-    st.markdown("Faça upload do arquivo **Alojamento Atual Grupo Pluma.xlsx** — todas as unidades serão carregadas automaticamente.")
+DATA_FILE = "data/alojamento.xlsx"
+
+@st.cache_data(show_spinner=False)
+def carregar_dados_automatico():
+    """Lê o arquivo commitado no repositório."""
+    import os
+    if not os.path.exists(DATA_FILE):
+        return None, None, None
+    lotes = ler_alojamento(DATA_FILE)
+    if not lotes:
+        return None, None, None
+    df_res, df_proj = calcular_projecao(lotes)
+    return lotes, df_res, df_proj
+
+# Carrega automaticamente se ainda não estiver na sessão
+if 'df_res' not in st.session_state or st.session_state['df_res'] is None:
+    with st.spinner("Carregando dados... aguarde."):
+        lotes_auto, df_res_auto, df_proj_auto = carregar_dados_automatico()
+        if df_res_auto is not None:
+            st.session_state['df_res']  = df_res_auto
+            st.session_state['df_proj'] = df_proj_auto
+
+# Painel de atualização (colapsado por padrão)
+with st.expander("🔄 Atualizar arquivo de alojamento", expanded=False):
+    st.markdown("Faça upload de uma versão mais recente do arquivo para atualizar a projeção.")
     arquivo = st.file_uploader(
-        "Arquivo de alojamento", type=["xlsx", "xls"],
+        "Novo arquivo de alojamento", type=["xlsx", "xls"],
         label_visibility="collapsed", key="up_alojamento")
 
     if arquivo:
-        with st.spinner("Lendo arquivo e processando todas as unidades..."):
+        with st.spinner("Processando novo arquivo..."):
             try:
                 lotes = ler_alojamento(arquivo)
                 if lotes:
                     df_res, df_proj = calcular_projecao(lotes)
                     st.session_state['df_res']  = df_res
                     st.session_state['df_proj'] = df_proj
+                    st.cache_data.clear()
                     unidades_ok = sorted(df_res['unidade'].unique())
                     st.success(f"✅ {len(lotes)} lotes carregados | {len(unidades_ok)} unidades: {', '.join(unidades_ok)}")
                 else:
-                    st.warning("Nenhum lote válido encontrado. Verifique se o arquivo está correto.")
+                    st.warning("Nenhum lote válido encontrado.")
             except Exception as e:
-                st.error(f"Erro ao processar arquivo: {e}")
+                st.error(f"Erro: {e}")
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
 
