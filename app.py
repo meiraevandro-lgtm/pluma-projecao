@@ -665,18 +665,98 @@ st.plotly_chart(fig_aloj, use_container_width=True)
 
 st.markdown("---")
 
-# Tabela completa de lotes — limitado a sem_atual <= 68
-st.subheader("Todos os lotes")
-df_tab = res[res["sem_atual"] <= 68][["unidade","lote","lote_recria","granja_recria","granja_prod","linhagem","dt_aloj",
-              "femeas","sem_atual","pico_sem","pico_dt","pico_pct","total_ovos"]].copy()
-df_tab["dt_aloj"]    = pd.to_datetime(df_tab["dt_aloj"]).dt.strftime("%d/%m/%Y")
-df_tab["pico_dt"]    = pd.to_datetime(df_tab["pico_dt"]).dt.strftime("%d/%m/%Y")
-df_tab["pico_pct"]   = df_tab["pico_pct"].apply(lambda v: f"{v:.1f}%")
-df_tab["femeas"]     = df_tab["femeas"].apply(fmt_n)
-df_tab["total_ovos"] = df_tab["total_ovos"].apply(lambda v: f"{v:,.0f}".replace(",","."))
-df_tab.columns = ["Unidade","Lote Prod.","Lote Recria","Granja Recria","Granja Produção",
-                  "Linhagem","Dt. Aloj.","Fêmeas","Sem. atual","Sem. pico","Data pico","% pico","Ovos proj."]
-st.dataframe(df_tab.sort_values("Sem. atual", ascending=False),
-             use_container_width=True, hide_index=True)
+# ── Checklist de validação de lotes em produção ──────────────────────────────
+st.markdown("#### ✅ Checklist de Lotes em Produção")
+
+# Somente lotes ativos (já alojados + em produção ou recria)
+df_check = res[
+    res['dt_aloj'].apply(lambda d: d.to_pydatetime().replace(tzinfo=None)) <= HOJE
+].copy()
+df_check = df_check[df_check['sem_atual'] <= 68].copy()
+
+# Fase do lote
+def fase(row):
+    if row['sem_atual'] < 23:  return "🐣 Recria"
+    elif row['sem_atual'] <= 68: return "🥚 Produção"
+    return "✖ Encerrado"
+
+df_check['fase']     = df_check.apply(fase, axis=1)
+df_check['dt_aloj_fmt'] = pd.to_datetime(df_check['dt_aloj']).dt.strftime("%d/%m/%Y")
+df_check['pico_dt_fmt'] = pd.to_datetime(df_check['pico_dt']).dt.strftime("%d/%m/%Y")
+df_check['pico_pct_fmt']= df_check['pico_pct'].apply(lambda v: f"{v:.0f}%")
+df_check['femeas_fmt']  = df_check['femeas'].apply(fmt_n)
+df_check['ovos_fmt']    = df_check['total_ovos'].apply(lambda v: f"{v/1e6:.1f}M")
+
+# Filtros rápidos
+col_f1, col_f2, col_f3 = st.columns(3)
+with col_f1:
+    fase_fil = st.selectbox("Fase", ["Todas","🐣 Recria","🥚 Produção"], key="fase_fil")
+with col_f2:
+    unit_fil = st.selectbox("Unidade", ["Todas"] + sorted(df_check['unidade'].unique()), key="unit_fil_chk")
+with col_f3:
+    lin_fil  = st.selectbox("Linhagem", ["Todas"] + sorted(df_check['linhagem'].unique()), key="lin_fil_chk")
+
+df_view = df_check.copy()
+if fase_fil != "Todas":  df_view = df_view[df_view['fase'] == fase_fil]
+if unit_fil != "Todas":  df_view = df_view[df_view['unidade'] == unit_fil]
+if lin_fil  != "Todas":  df_view = df_view[df_view['linhagem'] == lin_fil]
+df_view = df_view.sort_values('sem_atual', ascending=False).reset_index(drop=True)
+
+# Inicializa estado de validação
+chk_key = "validacoes"
+if chk_key not in st.session_state:
+    st.session_state[chk_key] = {}
+
+# Monta tabela editável
+df_editor = pd.DataFrame({
+    "✅ Validado":       [st.session_state[chk_key].get(str(r['lote'])+'_'+str(r['unidade']), False) for _, r in df_view.iterrows()],
+    "Fase":             df_view['fase'].values,
+    "Unidade":          df_view['unidade'].values,
+    "Lote Prod.":       df_view['lote'].values,
+    "Lote Recria":      df_view['lote_recria'].values,
+    "Granja Produção":  df_view['granja_prod'].values,
+    "Linhagem":         df_view['linhagem'].values,
+    "Dt. Aloj.":        df_view['dt_aloj_fmt'].values,
+    "Fêmeas":           df_view['femeas_fmt'].values,
+    "Sem. atual":       df_view['sem_atual'].values,
+    "Data pico":        df_view['pico_dt_fmt'].values,
+    "% pico":           df_view['pico_pct_fmt'].values,
+    "Ovos proj.":       df_view['ovos_fmt'].values,
+})
+
+# Contadores
+total   = len(df_editor)
+validados = sum(st.session_state[chk_key].get(str(r['lote'])+'_'+str(r['unidade']), False) for _, r in df_view.iterrows())
+pendentes = total - validados
+
+cv1, cv2, cv3 = st.columns(3)
+cv1.metric("Total de lotes", total)
+cv2.metric("✅ Validados",   validados)
+cv3.metric("⏳ Pendentes",   pendentes)
+
+# Editor interativo
+edited = st.data_editor(
+    df_editor,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "✅ Validado": st.column_config.CheckboxColumn("✅", width="small"),
+        "Fase":        st.column_config.TextColumn("Fase", width="small"),
+        "Sem. atual":  st.column_config.NumberColumn("Sem.", width="small"),
+    },
+    disabled=["Fase","Unidade","Lote Prod.","Lote Recria","Granja Produção",
+              "Linhagem","Dt. Aloj.","Fêmeas","Sem. atual","Data pico","% pico","Ovos proj."],
+    key="checklist_editor"
+)
+
+# Salva estado dos checkboxes
+for i, row in edited.iterrows():
+    lote_key = str(df_view.iloc[i]['lote']) + '_' + str(df_view.iloc[i]['unidade'])
+    st.session_state[chk_key][lote_key] = bool(row["✅ Validado"])
+
+# Botão limpar
+if st.button("🗑️ Limpar todas as validações"):
+    st.session_state[chk_key] = {}
+    st.rerun()
 
 st.caption("Grupo Pluma · Sistema de Projeção de Ovos · Curvas oficiais COBB e ROSS")
