@@ -281,12 +281,26 @@ def ler_alojamento(uploaded_file):
             except Exception:
                 continue
 
-    # ── Deduplicação: remove lotes duplicados por transferência entre unidades ──
+    # ── Deduplicação 1: mesmo lote_recria + transfer → linhas duplicadas na aba
+    # (ex: Mineiros — 48k alojados divididos em dois núcleos na produção;
+    #  a linha secundária tem qty=0 e cai no fallback com qty parcial)
+    # Mantém a de maior femeas.
+    from collections import defaultdict
+    grupos_lote = defaultdict(list)
+    for l in todos_lotes:
+        chave_lote = (l['unidade'], l['lote_recria'], l['transfer'].date())
+        grupos_lote[chave_lote].append(l)
+    lotes_sem_dup_linha = []
+    for chave_lote, grupo in grupos_lote.items():
+        melhor = max(grupo, key=lambda x: x['femeas'])
+        lotes_sem_dup_linha.append(melhor)
+
+    # ── Deduplicação 2: remove lotes duplicados por transferência entre unidades ──
     # Um lote pode aparecer na aba de origem E na aba de destino.
     # Chave de unicidade: granja_prod + qty + abate + transfer (mesma produção)
     vistos = set()
     lotes_dedup = []
-    for l in todos_lotes:
+    for l in lotes_sem_dup_linha:
         chave = (
             l['granja_prod'].strip().lower(),
             round(l['femeas']),
@@ -433,7 +447,7 @@ st.markdown("---")
 
 DATA_FILE = "data/alojamento.xlsx"
 
-_CACHE_VER = "v9"  # incrementar para forçar recarga do cache
+_CACHE_VER = "v10"  # incrementar para forçar recarga do cache
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_automatico(ver=_CACHE_VER):
