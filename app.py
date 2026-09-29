@@ -49,6 +49,24 @@ CURVA_ROSS = {
     66:(54.0035,97.5,90.0),
 }
 
+CURVA_COBB_800 = {
+    24:(0.0,0.0,99.75),25:(4.03711452761135,65.0,99.5),26:(25.2319657975709,80.0,99.2),
+    27:(60.5567179141702,85.0,98.9),28:(80.7422905522269,90.0,98.6),29:(85.7886837117411,92.0,98.3),
+    30:(87.8072409755468,93.0,98.0),31:(87.8072409755468,94.5,97.7),32:(87.3026016595953,95.5,97.4),
+    33:(86.7979623436439,96.0,97.15),34:(86.2933230276925,96.8,96.9),35:(85.7886837117411,97.2,96.65),
+    36:(84.7794050798382,97.5,96.4),37:(83.7701264479354,97.5,96.15),38:(82.7608478160326,97.5,95.9),
+    39:(81.7515691841297,97.5,95.65),40:(80.7422905522269,97.5,95.4),41:(79.7330119203241,97.5,95.15),
+    42:(78.7237332884212,97.5,94.9),43:(77.7144546565184,97.5,94.65),44:(76.7051760246156,97.5,94.4),
+    45:(75.6958973927127,97.5,94.2),46:(74.6866187608099,97.5,94.0),47:(73.6773401289071,97.5,93.8),
+    48:(72.6680614970042,97.5,93.6),49:(71.6587828651014,97.5,93.4),50:(70.6495042331985,97.5,93.2),
+    51:(69.6402256012957,97.5,93.0),52:(68.6309469693929,97.5,92.8),53:(67.62166833749,97.5,92.6),
+    54:(66.6123897055872,97.5,92.4),55:(65.6031110736844,97.5,92.2),56:(64.5938324417815,97.5,92.0),
+    57:(63.5845538098787,97.5,91.8),58:(62.5752751779758,97.5,91.6),59:(61.565996546073,97.5,91.4),
+    60:(60.5567179141702,97.5,91.2),61:(59.5474392822673,97.5,91.0),62:(58.5381606503645,97.5,90.8),
+    63:(57.5288820184617,97.5,90.6),64:(56.5196033865588,97.5,90.4),65:(55.510324754656,97.5,90.2),
+    66:(54.5010461227532,97.5,90.0),
+}
+
 CURVA_HUBBARD = CURVA_ROSS  # Hubbard Efficiency Plus = mesma curva Ross AP95
 
 CORES_UNIDADE = {
@@ -101,35 +119,28 @@ UNIT_SHEETS = [
 def normalize_unit(sheet):
     return sheet.replace('PLuma', 'Pluma').strip()
 
-def get_curva(raca):
-    r = str(raca).upper()
-    if "HUBB" in r: return CURVA_HUBBARD
-    if "ROSS" in r: return CURVA_ROSS
-    return CURVA_COBB
-
 def get_linhagem(raca, fem_mac=""):
     """Retorna nome comercial da linhagem usando coluna Fêmea-Macho quando disponível."""
     fm = str(fem_mac).upper().strip()
     r  = str(raca).upper().strip()
-    # Hubbard — detecta pela raça ou pelo macho
     if "HUBB" in r or "EFFICIENCY PLUS" in fm:
         return "Hubbard EP"
-    # Ross
     if "ROSS" in r or "AP95" in fm:
-        if "APN" in fm:
-            return "Ross APN"
-        return "Ross AP95"
+        return "Ross APN" if "APN" in fm else "Ross AP95"
     if "APN" in fm:
         return "Ross APN"
-    # Cobb — distingue 500 / 800 / CDP4 pela coluna fem_mac
     if "COBB" in r or "JBS" in r:
-        if "800" in fm:
-            return "Cobb 800"
-        if "CDP4" in fm:
-            return "Cobb CDP4"
+        if "800" in fm:  return "Cobb 800"
+        if "CDP4" in fm: return "Cobb CDP4"
         return "Cobb 500"
-    # fallback
     return str(raca).strip().title()
+
+def get_curva(raca, fem_mac=""):
+    lin = get_linhagem(raca, fem_mac)
+    if lin == "Hubbard EP":  return CURVA_HUBBARD
+    if lin in ("Ross AP95", "Ross APN"): return CURVA_ROSS
+    if lin == "Cobb 800":    return CURVA_COBB_800
+    return CURVA_COBB  # Cobb 500 e CDP4
 
 def week_start_pluma(dt):
     """Semana Pluma: começa na quinta-feira, termina na quarta-feira."""
@@ -270,7 +281,7 @@ def calcular_projecao(lotes):
     proj_rows   = []
 
     for l in lotes:
-        curva        = get_curva(l['raca'])
+        curva        = get_curva(l['raca'], l['fem_mac'])
         transfer     = l['transfer']
         abate        = l['abate']
         idade_inicio = l['idade_inicio']
@@ -343,6 +354,7 @@ def _ovos_por_ave(curva):
 
 _REF_CURVAS = {
     "Cobb 500":   _ovos_por_ave(CURVA_COBB),
+    "Cobb 800":   _ovos_por_ave(CURVA_COBB_800),
     "Ross AP95":  _ovos_por_ave(CURVA_ROSS),
     "Hubbard EP": _ovos_por_ave(CURVA_HUBBARD),
 }
@@ -357,7 +369,7 @@ with col_title:
     st.caption(f"Curvas oficiais COBB e ROSS · {HOJE.strftime('%d/%m/%Y')} · Alojamentos a partir de 01/01/2025")
 
 # Tabela de referência por linhagem
-_CORES_REF = {"Cobb 500": "#185FA5", "Ross AP95": "#BA7517", "Hubbard EP": "#2eaa5f"}
+_CORES_REF = {"Cobb 500": "#185FA5", "Cobb 800": "#2471a3", "Ross AP95": "#BA7517", "Hubbard EP": "#2eaa5f"}
 st.markdown("##### Ovos incubáveis por fêmea em produção — curvas padrão Girardi/Pluma (sem 24–66)")
 ref_cols = st.columns(len(_REF_CURVAS))
 for col, (lin, val) in zip(ref_cols, _REF_CURVAS.items()):
@@ -376,7 +388,7 @@ st.markdown("---")
 
 DATA_FILE = "data/alojamento.xlsx"
 
-_CACHE_VER = "v7"  # incrementar para forçar recarga do cache
+_CACHE_VER = "v8"  # incrementar para forçar recarga do cache
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_automatico(ver=_CACHE_VER):
