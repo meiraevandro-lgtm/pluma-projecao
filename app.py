@@ -69,15 +69,16 @@ SEM_ALOJ_2027 = {'Pluma DF'}
 # Estrutura padrão da maioria das unidades
 COL_DEFAULT = dict(
     aloj=1, lote_recria=3, granja_recria=6,
-    raca=11, transfer=13, lote_prod=14,
+    raca=11, fem_mac=12, transfer=13, lote_prod=14,
     granja_prod=16,                          # granja de produção (fixa após semana 23)
     qty=18, qty_recria=8, abate_dt=19, idade_inicio=22,
 )
 
 # Pluma DF: coluna extra no início + inicia produção na semana 25
+# col 13 é data (Inic. 22 Sem.), não Fêmea-Macho — sem fem_mac
 COL_DF = dict(
     aloj=2, lote_recria=4, granja_recria=7,
-    raca=12, transfer=14, lote_prod=15,
+    raca=12, fem_mac=None, transfer=14, lote_prod=15,
     granja_prod=17,
     qty=18, qty_recria=9, abate_dt=19, idade_inicio=25,
 )
@@ -85,7 +86,7 @@ COL_DF = dict(
 # Cassilândia: sem coluna Núcleo — todas deslocadas -2 a partir da col 7
 COL_CASSIL = dict(
     aloj=1, lote_recria=3, granja_recria=6,
-    raca=10, transfer=12, lote_prod=13,
+    raca=10, fem_mac=11, transfer=12, lote_prod=13,
     granja_prod=15,
     qty=16, qty_recria=7, abate_dt=17, idade_inicio=22,
 )
@@ -106,15 +107,28 @@ def get_curva(raca):
     if "ROSS" in r: return CURVA_ROSS
     return CURVA_COBB
 
-def get_linhagem(raca):
-    r = str(raca).upper()
-    if "HUBB" in r:
+def get_linhagem(raca, fem_mac=""):
+    """Retorna nome comercial da linhagem usando coluna Fêmea-Macho quando disponível."""
+    fm = str(fem_mac).upper().strip()
+    r  = str(raca).upper().strip()
+    # Hubbard — detecta pela raça ou pelo macho
+    if "HUBB" in r or "EFFICIENCY PLUS" in fm:
         return "Hubbard EP"
-    if "ROSS" in r:
+    # Ross
+    if "ROSS" in r or "AP95" in fm:
+        if "APN" in fm:
+            return "Ross APN"
         return "Ross AP95"
-    if "COBB" in r:
+    if "APN" in fm:
+        return "Ross APN"
+    # Cobb — distingue 500 / 800 / CDP4 pela coluna fem_mac
+    if "COBB" in r or "JBS" in r:
+        if "800" in fm:
+            return "Cobb 800"
+        if "CDP4" in fm:
+            return "Cobb CDP4"
         return "Cobb 500"
-    # fallback: retorna o valor original capitalizado
+    # fallback
     return str(raca).strip().title()
 
 def week_start_pluma(dt):
@@ -172,6 +186,7 @@ def ler_alojamento(uploaded_file):
                 granja_recria = str(row.iloc[C['granja_recria']]).strip()
                 granja_prod   = str(row.iloc[C['granja_prod']]).strip()
                 raca          = str(row.iloc[C['raca']]).strip()
+                fem_mac       = str(row.iloc[C['fem_mac']]).strip() if C.get('fem_mac') is not None else ""
                 transfer_val  = row.iloc[C['transfer']]
                 qty_val       = row.iloc[C['qty']]
                 # fallback: usa qty de recria quando qty produção está vazia
@@ -215,7 +230,7 @@ def ler_alojamento(uploaded_file):
                     granja_prod=granja_prod,
                     granja=granja_recria,           # chave principal = recria
                     raca=raca,
-                    linhagem=get_linhagem(raca),
+                    linhagem=get_linhagem(raca, fem_mac),
                     aloj_dt=aloj_dt,
                     transfer=transfer,
                     abate=abate,
@@ -540,7 +555,14 @@ fig_sem.update_layout(
 st.plotly_chart(fig_sem, use_container_width=True)
 
 # ── Barras mensais: Total ou Por Linhagem ────────────────────────────────────
-CORES_LIN = {"Cobb 500": "#185FA5", "Ross AP95": "#BA7517", "Hubbard EP": "#2eaa5f"}
+CORES_LIN = {
+    "Cobb 500":   "#185FA5",
+    "Cobb 800":   "#2471a3",
+    "Cobb CDP4":  "#5dade2",
+    "Ross AP95":  "#BA7517",
+    "Ross APN":   "#d4ac0d",
+    "Hubbard EP": "#2eaa5f",
+}
 
 col_tit, col_btn = st.columns([3, 2])
 with col_tit:
@@ -577,7 +599,7 @@ if modo_mensal == "Total":
         y=grp_tot[grp_tot["periodo"] >= hm_mes]["ovos_incub"].round(),
         name="Projetado", marker_color="#85B7EB"))
 else:
-    for lin in ["Cobb 500", "Ross AP95", "Hubbard EP"]:
+    for lin in ["Cobb 500", "Cobb 800", "Cobb CDP4", "Ross AP95", "Ross APN", "Hubbard EP"]:
         sub = grp_lin[grp_lin["linhagem"] == lin]
         if sub.empty:
             continue
