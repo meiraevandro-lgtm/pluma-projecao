@@ -163,9 +163,32 @@ def fmt_n(v):
 
 # ── Leitura do arquivo de alojamento ────────────────────────────────────────
 
+def _ler_linhas_canceladas(caminho):
+    """Retorna dict {sheet_name: set(row_indices_1based)} com linhas vermelhas (FFFF0000)."""
+    from openpyxl import load_workbook
+    canceladas = {}
+    try:
+        wb = load_workbook(caminho, read_only=False, data_only=True)
+        for ws in wb.worksheets:
+            reds = set()
+            for row in ws.iter_rows():
+                for cell in row[:1]:  # só verifica 1ª célula da linha para velocidade
+                    try:
+                        if cell.fill and cell.fill.fgColor.rgb == "FFFF0000":
+                            reds.add(cell.row)
+                    except Exception:
+                        pass
+            if reds:
+                canceladas[ws.title] = reds
+    except Exception:
+        pass
+    return canceladas
+
+
 def ler_alojamento(uploaded_file):
     """Lê o arquivo de alojamento completo e extrai lotes de todas as unidades."""
     xl = pd.ExcelFile(uploaded_file)
+    linhas_cancel = _ler_linhas_canceladas(uploaded_file) if isinstance(uploaded_file, (str, bytes)) else {}
     todos_lotes = []
 
     for sheet in UNIT_SHEETS:
@@ -175,6 +198,7 @@ def ler_alojamento(uploaded_file):
             continue
 
         df = pd.read_excel(xl, sheet_name=sheet_real, header=None)
+        cancel_rows = linhas_cancel.get(sheet_real, set())
         unit = normalize_unit(sheet)
         C = SHEET_COLS.get(sheet_real, SHEET_COLS.get(sheet, COL_DEFAULT))
 
@@ -182,6 +206,10 @@ def ler_alojamento(uploaded_file):
             if i == 0:
                 continue
             try:
+                # Linha cancelada (fundo vermelho FFFF0000 no Excel)
+                excel_row = i + 1  # pandas index 0-based → openpyxl 1-based (header=row1)
+                obs = "Cancelado" if excel_row in cancel_rows else ""
+
                 # Data de alojamento — filtro base >= 01/01/2025
                 aloj_val = row.iloc[C['aloj']]
                 if not isinstance(aloj_val, (datetime, pd.Timestamp)):
@@ -248,6 +276,7 @@ def ler_alojamento(uploaded_file):
                     abate=abate,
                     femeas=float(qty_val),
                     idade_inicio=idade_inicio,
+                    obs=obs,
                 ))
             except Exception:
                 continue
@@ -281,11 +310,26 @@ def calcular_projecao(lotes):
     proj_rows   = []
 
     for l in lotes:
+        obs          = l.get('obs', '')
         curva        = get_curva(l['raca'], l['fem_mac'])
         transfer     = l['transfer']
         abate        = l['abate']
         idade_inicio = l['idade_inicio']
         femeas       = l['femeas']
+
+        # Lote cancelado: aparece na tabela mas sem projeção
+        if obs == "Cancelado":
+            dt_inicio_prod = transfer + timedelta(weeks=max(0, 25 - idade_inicio))
+            resumo_rows.append(dict(
+                unidade=l['unidade'], lote=l['lote'], lote_recria=l['lote_recria'],
+                granja=l['granja_recria'], granja_recria=l['granja_recria'],
+                granja_prod=l['granja_prod'], raca=l['raca'], fem_mac=l['fem_mac'],
+                linhagem=l['linhagem'], femeas=femeas, dt_aloj=l['aloj_dt'],
+                dt_inicio_prod=dt_inicio_prod, sem_atual=0, pico_pct=0,
+                pico_sem=0, pico_dt=None, total_ovos=0, sems_pico=0, alerta=False,
+                obs=obs,
+            ))
+            continue
 
         semanas_lote = []
         for sem in range(idade_inicio, 67):
@@ -340,6 +384,7 @@ def calcular_projecao(lotes):
             sem_atual=sem_atual, pico_pct=pico['pos'],
             pico_sem=pico['semana'], pico_dt=pico['dt_sem'],
             total_ovos=total_ovos, sems_pico=sems_pico, alerta=alerta,
+            obs=obs,
         ))
 
     return pd.DataFrame(resumo_rows), pd.DataFrame(proj_rows)
@@ -388,7 +433,7 @@ st.markdown("---")
 
 DATA_FILE = "data/alojamento.xlsx"
 
-_CACHE_VER = "v8"  # incrementar para forçar recarga do cache
+_CACHE_VER = "v9"  # incrementar para forçar recarga do cache
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_automatico(ver=_CACHE_VER):
@@ -809,6 +854,7 @@ df_exib = pd.DataFrame({
     "Dt. Inic. Prod.": pd.to_datetime(df_tab['dt_inicio_prod']).dt.strftime("%d/%m/%Y").values,
     "Qtde. Fêmeas":    (df_tab['femeas'] * 0.95).apply(lambda v: fmt_n(round(v))).values,
     "Fêmea - Macho":   df_tab['fem_mac'].values,
+    "Obs.":            df_tab['obs'].fillna("").values if 'obs' in df_tab.columns else [""] * len(df_tab),
 })
 
 n_val = sum(st.session_state[chk_key].get(_chave(r), False) for _, r in df_tab.iterrows())
@@ -829,8 +875,9 @@ edited = st.data_editor(
         "Dt. Inic. Prod.": st.column_config.TextColumn("Dt. Inic. Prod.", width="small"),
         "Qtde. Fêmeas":    st.column_config.TextColumn("Qtde.",           width="small"),
         "Fêmea - Macho":   st.column_config.TextColumn("Fêmea - Macho",  width="medium"),
+        "Obs.":            st.column_config.TextColumn("Obs.",            width="small"),
     },
-    disabled=["Fase","Unidade","Dt. Aloj.","Dt. Inic. Prod.","Qtde. Fêmeas","Fêmea - Macho"],
+    disabled=["Fase","Unidade","Dt. Aloj.","Dt. Inic. Prod.","Qtde. Fêmeas","Fêmea - Macho","Obs."],
     key="editor_lotes",
 )
 
