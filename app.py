@@ -188,10 +188,10 @@ def ler_alojamento(uploaded_file):
                 raca          = str(row.iloc[C['raca']]).strip()
                 fem_mac       = str(row.iloc[C['fem_mac']]).strip() if C.get('fem_mac') is not None else ""
                 transfer_val  = row.iloc[C['transfer']]
-                qty_val       = row.iloc[C['qty']]
-                # fallback: usa qty de recria quando qty produção está vazia
-                if pd.isna(qty_val) or float(qty_val) <= 0:
-                    qty_val = row.iloc[C['qty_recria']]
+                # quantidade alojada = col recria (H) é a base; col produção como fallback
+                qty_val = row.iloc[C['qty_recria']]
+                if pd.isna(qty_val) or str(qty_val).strip() in ('', 'nan', 'NaT') or float(qty_val) <= 0:
+                    qty_val = row.iloc[C['qty']]
                 abate_val     = row.iloc[C['abate_dt']]
                 lote_prod     = str(row.iloc[C['lote_prod']]).strip()
                 idade_inicio  = C['idade_inicio']
@@ -347,7 +347,7 @@ st.markdown("---")
 
 DATA_FILE = "data/alojamento.xlsx"
 
-_CACHE_VER = "v6"  # incrementar para forçar recarga do cache
+_CACHE_VER = "v7"  # incrementar para forçar recarga do cache
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_automatico(ver=_CACHE_VER):
