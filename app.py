@@ -350,7 +350,7 @@ DATA_FILE = "data/alojamento.xlsx"
 _CACHE_VER = "v6"  # incrementar para forçar recarga do cache
 
 @st.cache_data(show_spinner=False)
-def carregar_dados_automatico(_ver=_CACHE_VER):
+def carregar_dados_automatico(ver=_CACHE_VER):
     """Lê o arquivo commitado no repositório."""
     import os
     if not os.path.exists(DATA_FILE):
@@ -369,7 +369,7 @@ _needs_reload = (
 )
 if _needs_reload:
     with st.spinner("Carregando dados... aguarde."):
-        lotes_auto, df_res_auto, df_proj_auto = carregar_dados_automatico()
+        lotes_auto, df_res_auto, df_proj_auto = carregar_dados_automatico(ver=_CACHE_VER)
         if df_res_auto is not None:
             st.session_state['df_res']      = df_res_auto
             st.session_state['df_proj']     = df_proj_auto
