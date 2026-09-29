@@ -109,10 +109,13 @@ def get_curva(raca):
 def get_linhagem(raca):
     r = str(raca).upper()
     if "HUBB" in r:
-        return "HUBBARD"
+        return "Hubbard EP"
     if "ROSS" in r:
-        return "ROSS"
-    return "COBB"
+        return "Ross AP95"
+    if "COBB" in r:
+        return "Cobb 500"
+    # fallback: retorna o valor original capitalizado
+    return str(raca).strip().title()
 
 def week_start_pluma(dt):
     """Semana Pluma: começa na quinta-feira, termina na quarta-feira."""
@@ -537,7 +540,7 @@ fig_sem.update_layout(
 st.plotly_chart(fig_sem, use_container_width=True)
 
 # ── Barras mensais: Total ou Por Linhagem ────────────────────────────────────
-CORES_LIN = {"COBB": "#185FA5", "ROSS": "#BA7517", "HUBBARD": "#2eaa5f"}
+CORES_LIN = {"Cobb 500": "#185FA5", "Ross AP95": "#BA7517", "Hubbard EP": "#2eaa5f"}
 
 col_tit, col_btn = st.columns([3, 2])
 with col_tit:
@@ -574,7 +577,7 @@ if modo_mensal == "Total":
         y=grp_tot[grp_tot["periodo"] >= hm_mes]["ovos_incub"].round(),
         name="Projetado", marker_color="#85B7EB"))
 else:
-    for lin in ["COBB", "ROSS", "HUBBARD"]:
+    for lin in ["Cobb 500", "Ross AP95", "Hubbard EP"]:
         sub = grp_lin[grp_lin["linhagem"] == lin]
         if sub.empty:
             continue
