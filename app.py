@@ -229,8 +229,10 @@ def ler_alojamento(uploaded_file):
                 transfer_val  = row.iloc[C['transfer']]
                 # quantidade alojada = col recria (H) é a base; col produção como fallback
                 qty_val = row.iloc[C['qty_recria']]
+                qty_from_prod = False
                 if pd.isna(qty_val) or str(qty_val).strip() in ('', 'nan', 'NaT') or float(qty_val) <= 0:
                     qty_val = row.iloc[C['qty']]
+                    qty_from_prod = True  # veio da col produção — já é pós-mortalidade
                 abate_val     = row.iloc[C['abate_dt']]
                 lote_prod     = str(row.iloc[C['lote_prod']]).strip()
                 idade_inicio  = C['idade_inicio']
@@ -276,6 +278,7 @@ def ler_alojamento(uploaded_file):
                     abate=abate,
                     femeas=float(qty_val),
                     idade_inicio=idade_inicio,
+                    qty_from_prod=qty_from_prod,
                     obs=obs,
                 ))
             except Exception:
@@ -324,12 +327,15 @@ def calcular_projecao(lotes):
     proj_rows   = []
 
     for l in lotes:
-        obs          = l.get('obs', '')
-        curva        = get_curva(l['raca'], l['fem_mac'])
-        transfer     = l['transfer']
-        abate        = l['abate']
-        idade_inicio = l['idade_inicio']
-        femeas       = l['femeas']
+        obs           = l.get('obs', '')
+        curva         = get_curva(l['raca'], l['fem_mac'])
+        transfer      = l['transfer']
+        abate         = l['abate']
+        idade_inicio  = l['idade_inicio']
+        femeas        = l['femeas']
+        qty_from_prod = l.get('qty_from_prod', False)
+        # fator de mortalidade recria: 0.95 se qty veio da col recria; 1.0 se já é qty produção
+        fat_mort = 1.0 if qty_from_prod else 0.95
 
         # Lote cancelado: aparece na tabela mas sem projeção
         if obs == "Cancelado":
@@ -354,8 +360,7 @@ def calcular_projecao(lotes):
             if dt_sem > abate:
                 break
             pos, apr, viab = curva[sem]
-            # 95% viabilidade recria (5% mortalidade antes da produção)
-            aves  = femeas * 0.95 * (viab / 100)
+            aves  = femeas * fat_mort * (viab / 100)
             ovos  = aves * (pos / 100) * (apr / 100) * 7
             sem_pluma = week_start_pluma(dt_sem)
             # até sem 23 usa granja recria; após usa granja produção (fixa)
@@ -398,7 +403,7 @@ def calcular_projecao(lotes):
             sem_atual=sem_atual, pico_pct=pico['pos'],
             pico_sem=pico['semana'], pico_dt=pico['dt_sem'],
             total_ovos=total_ovos, sems_pico=sems_pico, alerta=alerta,
-            obs=obs,
+            qty_from_prod=qty_from_prod, obs=obs,
         ))
 
     return pd.DataFrame(resumo_rows), pd.DataFrame(proj_rows)
@@ -447,7 +452,7 @@ st.markdown("---")
 
 DATA_FILE = "data/alojamento.xlsx"
 
-_CACHE_VER = "v10"  # incrementar para forçar recarga do cache
+_CACHE_VER = "v11"  # incrementar para forçar recarga do cache
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_automatico(ver=_CACHE_VER):
@@ -866,7 +871,7 @@ df_exib = pd.DataFrame({
     "Unidade":         df_tab['unidade'].values,
     "Dt. Aloj.":       pd.to_datetime(df_tab['dt_aloj']).dt.strftime("%d/%m/%Y").values,
     "Dt. Inic. Prod.": pd.to_datetime(df_tab['dt_inicio_prod']).dt.strftime("%d/%m/%Y").values,
-    "Qtde. Fêmeas":    (df_tab['femeas'] * 0.95).apply(lambda v: fmt_n(round(v))).values,
+    "Qtde. Fêmeas":    [fmt_n(round(r['femeas'] * (1.0 if r.get('qty_from_prod') else 0.95))) for _, r in df_tab.iterrows()],
     "Fêmea - Macho":   df_tab['fem_mac'].values,
     "Obs.":            df_tab['obs'].fillna("").values if 'obs' in df_tab.columns else [""] * len(df_tab),
 })
