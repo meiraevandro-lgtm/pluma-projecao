@@ -766,7 +766,7 @@ df_exib = pd.DataFrame({
     "Unidade":         df_tab['unidade'].values,
     "Dt. Aloj.":       pd.to_datetime(df_tab['dt_aloj']).dt.strftime("%d/%m/%Y").values,
     "Dt. Inic. Prod.": pd.to_datetime(df_tab['dt_inicio_prod']).dt.strftime("%d/%m/%Y").values,
-    "Qtde. Fêmeas":    df_tab['femeas'].apply(fmt_n).values,
+    "Qtde. Fêmeas":    (df_tab['femeas'] * 0.95).apply(lambda v: fmt_n(round(v))).values,
     "Fêmea - Macho":   df_tab['fem_mac'].values,
 })
 
