@@ -224,6 +224,9 @@ def ler_alojamento(uploaded_file):
                 lote_recria   = str(row.iloc[C['lote_recria']]).strip()
                 granja_recria = str(row.iloc[C['granja_recria']]).strip()
                 granja_prod   = str(row.iloc[C['granja_prod']]).strip()
+                # marca recria em PR quando lote está em outra unidade
+                if obs == "" and granja_recria.upper().endswith("- PR"):
+                    obs = "Recria PR"
                 raca          = str(row.iloc[C['raca']]).strip()
                 fem_mac       = str(row.iloc[C['fem_mac']]).strip() if C.get('fem_mac') is not None else ""
                 transfer_val  = row.iloc[C['transfer']]
@@ -452,7 +455,7 @@ st.markdown("---")
 
 DATA_FILE = "data/alojamento.xlsx"
 
-_CACHE_VER = "v11"  # incrementar para forçar recarga do cache
+_CACHE_VER = "v12"  # incrementar para forçar recarga do cache
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_automatico(ver=_CACHE_VER):
