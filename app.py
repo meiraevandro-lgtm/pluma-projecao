@@ -230,6 +230,7 @@ def ler_alojamento(uploaded_file):
                     granja_prod=granja_prod,
                     granja=granja_recria,           # chave principal = recria
                     raca=raca,
+                    fem_mac=fem_mac,
                     linhagem=get_linhagem(raca, fem_mac),
                     aloj_dt=aloj_dt,
                     transfer=transfer,
@@ -319,8 +320,8 @@ def calcular_projecao(lotes):
             granja=l['granja_recria'],
             granja_recria=l['granja_recria'],
             granja_prod=l['granja_prod'],
-            raca=l['raca'], linhagem=l['linhagem'],
-            femeas=femeas, dt_aloj=l['aloj_dt'],
+            raca=l['raca'], fem_mac=l['fem_mac'], linhagem=l['linhagem'],
+            femeas=femeas, dt_aloj=l['aloj_dt'], transfer=l['transfer'],
             sem_atual=sem_atual, pico_pct=pico['pos'],
             pico_sem=pico['semana'], pico_dt=pico['dt_sem'],
             total_ovos=total_ovos, sems_pico=sems_pico, alerta=alerta,
@@ -695,10 +696,75 @@ st.plotly_chart(fig_aloj, use_container_width=True)
 
 st.markdown("---")
 
-# ── Checklist de lotes — layout a definir ────────────────────────────────────
-st.markdown("#### ✅ Checklist de Lotes em Produção e Recria")
-st.info("Tabela em construção — novo layout em breve.")
+# ── Tabela de lotes por unidade ──────────────────────────────────────────────
+st.markdown("#### 📋 Lotes por Unidade")
 
-# novo layout será definido em breve
+# Todos os lotes ativos: em produção, recria ou futuros (dentro do ciclo)
+HOJE_PY = HOJE
+
+df_tab = res[res['sem_atual'] <= 68].copy()
+
+def _fase(row):
+    aloj_py = row['dt_aloj'].to_pydatetime().replace(tzinfo=None)
+    if aloj_py > HOJE_PY:        return "🔜 Recria Futura"
+    if row['sem_atual'] < 23:    return "🐣 Recria"
+    return "🥚 Produção"
+
+df_tab['_fase'] = df_tab.apply(_fase, axis=1)
+
+# Filtros
+tf1, tf2, tf3 = st.columns(3)
+with tf1:
+    fase_fil2 = st.selectbox("Fase", ["Todas", "🥚 Produção", "🐣 Recria", "🔜 Recria Futura"], key="fase_fil2")
+with tf2:
+    unit_fil2 = st.selectbox("Unidade", ["Todas"] + sorted(df_tab['unidade'].unique()), key="unit_fil2")
+with tf3:
+    lin_fil2  = st.selectbox("Linhagem", ["Todas"] + sorted(df_tab['linhagem'].unique()), key="lin_fil2")
+
+if fase_fil2 != "Todas": df_tab = df_tab[df_tab['_fase'] == fase_fil2]
+if unit_fil2 != "Todas": df_tab = df_tab[df_tab['unidade'] == unit_fil2]
+if lin_fil2  != "Todas": df_tab = df_tab[df_tab['linhagem'] == lin_fil2]
+
+# Contadores
+n_prod2   = (df_tab['_fase'] == "🥚 Produção").sum()
+n_rec2    = (df_tab['_fase'] == "🐣 Recria").sum()
+n_fut2    = (df_tab['_fase'] == "🔜 Recria Futura").sum()
+m1, m2, m3 = st.columns(3)
+m1.metric("🥚 Em Produção",   n_prod2)
+m2.metric("🐣 Em Recria",     n_rec2)
+m3.metric("🔜 Recria Futura", n_fut2)
+
+# Ordenação: fase → unidade → dt_aloj
+fase_ord2 = {"🥚 Produção": 0, "🐣 Recria": 1, "🔜 Recria Futura": 2}
+df_tab['_ford'] = df_tab['_fase'].map(fase_ord2)
+df_tab = df_tab.sort_values(['_ford', 'unidade', 'dt_aloj']).reset_index(drop=True)
+
+# Monta exibição com as 6 colunas marcadas na imagem
+df_exib = pd.DataFrame({
+    "Fase":            df_tab['_fase'].values,
+    "Unidade":         df_tab['unidade'].values,
+    "Dt. Aloj.":       pd.to_datetime(df_tab['dt_aloj']).dt.strftime("%d/%m/%Y").values,
+    "Dt. Inic. Prod.": pd.to_datetime(df_tab['transfer']).dt.strftime("%d/%m/%Y").values,
+    "Lote":            df_tab['lote_recria'].values,
+    "Recria":          df_tab['granja_recria'].values,
+    "Qtde. Fêmeas":    df_tab['femeas'].apply(fmt_n).values,
+    "Fêmea - Macho":   df_tab['fem_mac'].values,
+})
+
+st.dataframe(
+    df_exib,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "Fase":            st.column_config.TextColumn("Fase",            width="medium"),
+        "Unidade":         st.column_config.TextColumn("Unidade",         width="medium"),
+        "Dt. Aloj.":       st.column_config.TextColumn("Dt. Aloj.",       width="small"),
+        "Dt. Inic. Prod.": st.column_config.TextColumn("Dt. Inic. Prod.", width="small"),
+        "Lote":            st.column_config.TextColumn("Lote",            width="small"),
+        "Recria":          st.column_config.TextColumn("Recria",          width="large"),
+        "Qtde. Fêmeas":    st.column_config.TextColumn("Qtde.",           width="small"),
+        "Fêmea - Macho":   st.column_config.TextColumn("Fêmea - Macho",  width="medium"),
+    },
+)
 
 st.caption("Grupo Pluma · Sistema de Projeção de Ovos · Curvas oficiais COBB e ROSS")
