@@ -356,10 +356,11 @@ with col_title:
     st.caption(f"Curvas oficiais COBB e ROSS · {HOJE.strftime('%d/%m/%Y')} · Alojamentos a partir de 01/01/2025")
 
 # Tabela de referência por linhagem
+_CORES_REF = {"Cobb 500": "#185FA5", "Ross AP95": "#BA7517", "Hubbard EP": "#2eaa5f"}
 st.markdown("##### Ovos incubáveis projetados por fêmea alojada — curvas padrão Girardi/Pluma")
 ref_cols = st.columns(len(_REF_CURVAS))
 for col, (lin, val) in zip(ref_cols, _REF_CURVAS.items()):
-    cor = CORES_LIN.get(lin, "#555")
+    cor = _CORES_REF.get(lin, "#555")
     col.markdown(
         f"""<div style="border-left:4px solid {cor};padding:8px 14px;border-radius:5px;background:#f8f9fa">
         <div style="font-size:13px;color:{cor};font-weight:700">{lin}</div>
