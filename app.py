@@ -335,9 +335,10 @@ def calcular_projecao(lotes):
 
 # ── Referência de curva: ovos incubáveis por fêmea alojada (semanas 24-66) ──
 def _ovos_por_ave(curva):
+    # padrão da curva por fêmea em produção (sem 5% recria — aplicado individualmente na projeção)
     total = 0.0
     for sem, (pos, apr, viab) in curva.items():
-        total += 0.95 * (viab/100) * (pos/100) * (apr/100) * 7
+        total += (viab/100) * (pos/100) * (apr/100) * 7
     return round(total, 1)
 
 _REF_CURVAS = {
@@ -357,7 +358,7 @@ with col_title:
 
 # Tabela de referência por linhagem
 _CORES_REF = {"Cobb 500": "#185FA5", "Ross AP95": "#BA7517", "Hubbard EP": "#2eaa5f"}
-st.markdown("##### Ovos incubáveis projetados por fêmea alojada — curvas padrão Girardi/Pluma")
+st.markdown("##### Ovos incubáveis por fêmea em produção — curvas padrão Girardi/Pluma (sem 24–66)")
 ref_cols = st.columns(len(_REF_CURVAS))
 for col, (lin, val) in zip(ref_cols, _REF_CURVAS.items()):
     cor = _CORES_REF.get(lin, "#555")
@@ -365,7 +366,7 @@ for col, (lin, val) in zip(ref_cols, _REF_CURVAS.items()):
         f"""<div style="border-left:4px solid {cor};padding:8px 14px;border-radius:5px;background:#f8f9fa">
         <div style="font-size:13px;color:{cor};font-weight:700">{lin}</div>
         <div style="font-size:28px;font-weight:800;color:#1a1a1a">{val:.0f}</div>
-        <div style="font-size:11px;color:#888">ovos incubáveis / fêmea alojada</div>
+        <div style="font-size:11px;color:#888">ovos incubáveis / fêmea em produção</div>
         </div>""",
         unsafe_allow_html=True)
 
