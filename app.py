@@ -315,13 +315,17 @@ def calcular_projecao(lotes):
         sems_pico  = max(0, pico['semana'] - sem_atual)
         alerta     = 0 <= sems_pico <= 4 and sem_atual < 66
 
+        # semana 25 = primeiro valor de postura > 0 em todas as curvas
+        dt_inicio_prod = l['transfer'] + timedelta(weeks=max(0, 25 - l['idade_inicio']))
+
         resumo_rows.append(dict(
             unidade=l['unidade'], lote=l['lote'], lote_recria=l['lote_recria'],
             granja=l['granja_recria'],
             granja_recria=l['granja_recria'],
             granja_prod=l['granja_prod'],
             raca=l['raca'], fem_mac=l['fem_mac'], linhagem=l['linhagem'],
-            femeas=femeas, dt_aloj=l['aloj_dt'], transfer=l['transfer'],
+            femeas=femeas, dt_aloj=l['aloj_dt'],
+            dt_inicio_prod=dt_inicio_prod,
             sem_atual=sem_atual, pico_pct=pico['pos'],
             pico_sem=pico['semana'], pico_dt=pico['dt_sem'],
             total_ovos=total_ovos, sems_pico=sems_pico, alerta=alerta,
@@ -343,7 +347,7 @@ st.markdown("---")
 
 DATA_FILE = "data/alojamento.xlsx"
 
-_CACHE_VER = "v4"  # incrementar para forçar recarga do cache
+_CACHE_VER = "v5"  # incrementar para forçar recarga do cache
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_automatico(_ver=_CACHE_VER):
@@ -741,14 +745,12 @@ fase_ord2 = {"🥚 Produção": 0, "🐣 Recria": 1, "🔜 Recria Futura": 2}
 df_tab['_ford'] = df_tab['_fase'].map(fase_ord2)
 df_tab = df_tab.sort_values(['_ford', 'unidade', 'dt_aloj']).reset_index(drop=True)
 
-# Monta exibição com as 6 colunas marcadas na imagem
+# Monta exibição — sem Lote nem Granja Recria
 df_exib = pd.DataFrame({
     "Fase":            df_tab['_fase'].values,
     "Unidade":         df_tab['unidade'].values,
     "Dt. Aloj.":       pd.to_datetime(df_tab['dt_aloj']).dt.strftime("%d/%m/%Y").values,
-    "Dt. Inic. Prod.": pd.to_datetime(df_tab['transfer']).dt.strftime("%d/%m/%Y").values,
-    "Lote":            df_tab['lote_recria'].values,
-    "Recria":          df_tab['granja_recria'].values,
+    "Dt. Inic. Prod.": pd.to_datetime(df_tab['dt_inicio_prod']).dt.strftime("%d/%m/%Y").values,
     "Qtde. Fêmeas":    df_tab['femeas'].apply(fmt_n).values,
     "Fêmea - Macho":   df_tab['fem_mac'].values,
 })
@@ -762,8 +764,6 @@ st.dataframe(
         "Unidade":         st.column_config.TextColumn("Unidade",         width="medium"),
         "Dt. Aloj.":       st.column_config.TextColumn("Dt. Aloj.",       width="small"),
         "Dt. Inic. Prod.": st.column_config.TextColumn("Dt. Inic. Prod.", width="small"),
-        "Lote":            st.column_config.TextColumn("Lote",            width="small"),
-        "Recria":          st.column_config.TextColumn("Recria",          width="large"),
         "Qtde. Fêmeas":    st.column_config.TextColumn("Qtde.",           width="small"),
         "Fêmea - Macho":   st.column_config.TextColumn("Fêmea - Macho",  width="medium"),
     },
