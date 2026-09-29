@@ -751,8 +751,17 @@ fase_ord2 = {"🥚 Produção": 0, "🐣 Recria": 1, "🔜 Recria Futura": 2}
 df_tab['_ford'] = df_tab['_fase'].map(fase_ord2)
 df_tab = df_tab.sort_values(['_ford', 'unidade', 'dt_aloj']).reset_index(drop=True)
 
-# Monta exibição — sem Lote nem Granja Recria
+# Chave única por lote+unidade para persistir validações
+def _chave(row):
+    return f"{row['lote']}_{row['unidade']}"
+
+chk_key = "validacoes_lotes"
+if chk_key not in st.session_state:
+    st.session_state[chk_key] = {}
+
+# Monta exibição — sem Lote nem Granja Recria, com checkbox de validação
 df_exib = pd.DataFrame({
+    "✅":              [st.session_state[chk_key].get(_chave(r), False) for _, r in df_tab.iterrows()],
     "Fase":            df_tab['_fase'].values,
     "Unidade":         df_tab['unidade'].values,
     "Dt. Aloj.":       pd.to_datetime(df_tab['dt_aloj']).dt.strftime("%d/%m/%Y").values,
@@ -761,11 +770,18 @@ df_exib = pd.DataFrame({
     "Fêmea - Macho":   df_tab['fem_mac'].values,
 })
 
-st.dataframe(
+n_val = sum(st.session_state[chk_key].get(_chave(r), False) for _, r in df_tab.iterrows())
+n_pend = len(df_tab) - n_val
+cv1, cv2 = st.columns(2)
+cv1.metric("✅ Validados", n_val)
+cv2.metric("⏳ Pendentes", n_pend)
+
+edited = st.data_editor(
     df_exib,
     use_container_width=True,
     hide_index=True,
     column_config={
+        "✅":              st.column_config.CheckboxColumn("✅", width="small"),
         "Fase":            st.column_config.TextColumn("Fase",            width="medium"),
         "Unidade":         st.column_config.TextColumn("Unidade",         width="medium"),
         "Dt. Aloj.":       st.column_config.TextColumn("Dt. Aloj.",       width="small"),
@@ -773,6 +789,17 @@ st.dataframe(
         "Qtde. Fêmeas":    st.column_config.TextColumn("Qtde.",           width="small"),
         "Fêmea - Macho":   st.column_config.TextColumn("Fêmea - Macho",  width="medium"),
     },
+    disabled=["Fase","Unidade","Dt. Aloj.","Dt. Inic. Prod.","Qtde. Fêmeas","Fêmea - Macho"],
+    key="editor_lotes",
 )
+
+# Salva estado dos checkboxes
+for i, row in edited.iterrows():
+    k = _chave(df_tab.iloc[i])
+    st.session_state[chk_key][k] = bool(row["✅"])
+
+if st.button("🗑️ Limpar validações"):
+    st.session_state[chk_key] = {}
+    st.rerun()
 
 st.caption("Grupo Pluma · Sistema de Projeção de Ovos · Curvas oficiais COBB e ROSS")
