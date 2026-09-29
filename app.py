@@ -361,13 +361,19 @@ def carregar_dados_automatico(_ver=_CACHE_VER):
     df_res, df_proj = calcular_projecao(lotes)
     return lotes, df_res, df_proj
 
-# Carrega automaticamente se ainda não estiver na sessão
-if 'df_res' not in st.session_state or st.session_state['df_res'] is None:
+# Carrega automaticamente — recarrega se versão do cache mudou
+_needs_reload = (
+    'df_res' not in st.session_state
+    or st.session_state['df_res'] is None
+    or st.session_state.get('_cache_ver') != _CACHE_VER
+)
+if _needs_reload:
     with st.spinner("Carregando dados... aguarde."):
         lotes_auto, df_res_auto, df_proj_auto = carregar_dados_automatico()
         if df_res_auto is not None:
-            st.session_state['df_res']  = df_res_auto
-            st.session_state['df_proj'] = df_proj_auto
+            st.session_state['df_res']      = df_res_auto
+            st.session_state['df_proj']     = df_proj_auto
+            st.session_state['_cache_ver']  = _CACHE_VER
 
 # Painel de atualização (colapsado por padrão)
 with st.expander("🔄 Atualizar arquivo de alojamento", expanded=False):
