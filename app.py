@@ -343,8 +343,10 @@ st.markdown("---")
 
 DATA_FILE = "data/alojamento.xlsx"
 
+_CACHE_VER = "v4"  # incrementar para forçar recarga do cache
+
 @st.cache_data(show_spinner=False)
-def carregar_dados_automatico():
+def carregar_dados_automatico(_ver=_CACHE_VER):
     """Lê o arquivo commitado no repositório."""
     import os
     if not os.path.exists(DATA_FILE):
