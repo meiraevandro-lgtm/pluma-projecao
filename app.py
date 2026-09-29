@@ -670,22 +670,23 @@ st.plotly_chart(fig_aloj, use_container_width=True)
 
 st.markdown("---")
 
-# ── Checklist de validação de lotes em produção ──────────────────────────────
-st.markdown("#### ✅ Checklist de Lotes em Produção")
+# ── Checklist de lotes: produção + recria atual + recria futura ──────────────
+st.markdown("#### ✅ Checklist de Lotes em Produção e Recria")
 
-# Somente lotes ativos (já alojados + em produção ou recria)
-df_check = res[
-    res['dt_aloj'].apply(lambda d: d.to_pydatetime().replace(tzinfo=None)) <= HOJE
-].copy()
-df_check = df_check[df_check['sem_atual'] <= 68].copy()
+# Todos os lotes dentro do ciclo (inclui futuros)
+df_check = res[res['sem_atual'] <= 68].copy()
 
-# Fase do lote
+HOJE_PY = HOJE  # já é datetime sem tzinfo
+
 def fase(row):
-    if row['sem_atual'] < 23:  return "🐣 Recria"
-    elif row['sem_atual'] <= 68: return "🥚 Produção"
-    return "✖ Encerrado"
+    aloj_py = row['dt_aloj'].to_pydatetime().replace(tzinfo=None)
+    if aloj_py > HOJE_PY:
+        return "🔜 Recria Futura"
+    if row['sem_atual'] < 23:
+        return "🐣 Recria"
+    return "🥚 Produção"
 
-df_check['fase']     = df_check.apply(fase, axis=1)
+df_check['fase']        = df_check.apply(fase, axis=1)
 df_check['dt_aloj_fmt'] = pd.to_datetime(df_check['dt_aloj']).dt.strftime("%d/%m/%Y")
 df_check['pico_dt_fmt'] = pd.to_datetime(df_check['pico_dt']).dt.strftime("%d/%m/%Y")
 df_check['pico_pct_fmt']= df_check['pico_pct'].apply(lambda v: f"{v:.0f}%")
@@ -695,7 +696,10 @@ df_check['ovos_fmt']    = df_check['total_ovos'].apply(lambda v: f"{v/1e6:.1f}M"
 # Filtros rápidos
 col_f1, col_f2, col_f3 = st.columns(3)
 with col_f1:
-    fase_fil = st.selectbox("Fase", ["Todas","🐣 Recria","🥚 Produção"], key="fase_fil")
+    fase_fil = st.selectbox(
+        "Fase",
+        ["Todas", "🥚 Produção", "🐣 Recria", "🔜 Recria Futura"],
+        key="fase_fil")
 with col_f2:
     unit_fil = st.selectbox("Unidade", ["Todas"] + sorted(df_check['unidade'].unique()), key="unit_fil_chk")
 with col_f3:
@@ -705,7 +709,23 @@ df_view = df_check.copy()
 if fase_fil != "Todas":  df_view = df_view[df_view['fase'] == fase_fil]
 if unit_fil != "Todas":  df_view = df_view[df_view['unidade'] == unit_fil]
 if lin_fil  != "Todas":  df_view = df_view[df_view['linhagem'] == lin_fil]
-df_view = df_view.sort_values('sem_atual', ascending=False).reset_index(drop=True)
+
+# Ordenação: Produção por sem_atual desc; Recria e Futura por dt_aloj asc
+fase_order = {"🥚 Produção": 0, "🐣 Recria": 1, "🔜 Recria Futura": 2}
+df_view['_fase_ord'] = df_view['fase'].map(fase_order)
+df_view = df_view.sort_values(['_fase_ord', 'sem_atual', 'dt_aloj'],
+                               ascending=[True, False, True]).reset_index(drop=True)
+df_view = df_view.drop(columns=['_fase_ord'])
+
+# Contadores por fase
+n_prod   = (df_check['fase'] == "🥚 Produção").sum()
+n_recria = (df_check['fase'] == "🐣 Recria").sum()
+n_fut    = (df_check['fase'] == "🔜 Recria Futura").sum()
+
+cv1, cv2, cv3 = st.columns(3)
+cv1.metric("🥚 Em Produção",    n_prod)
+cv2.metric("🐣 Em Recria",      n_recria)
+cv3.metric("🔜 Recria Futura",  n_fut)
 
 # Inicializa estado de validação
 chk_key = "validacoes"
@@ -714,30 +734,21 @@ if chk_key not in st.session_state:
 
 # Monta tabela editável
 df_editor = pd.DataFrame({
-    "✅ Validado":       [st.session_state[chk_key].get(str(r['lote'])+'_'+str(r['unidade']), False) for _, r in df_view.iterrows()],
+    "✅":               [st.session_state[chk_key].get(str(r['lote'])+'_'+str(r['unidade']), False) for _, r in df_view.iterrows()],
     "Fase":             df_view['fase'].values,
     "Unidade":          df_view['unidade'].values,
     "Lote Prod.":       df_view['lote'].values,
     "Lote Recria":      df_view['lote_recria'].values,
+    "Granja Recria":    df_view['granja_recria'].values,
     "Granja Produção":  df_view['granja_prod'].values,
     "Linhagem":         df_view['linhagem'].values,
     "Dt. Aloj.":        df_view['dt_aloj_fmt'].values,
     "Fêmeas":           df_view['femeas_fmt'].values,
-    "Sem. atual":       df_view['sem_atual'].values,
+    "Sem.":             df_view['sem_atual'].values,
     "Data pico":        df_view['pico_dt_fmt'].values,
     "% pico":           df_view['pico_pct_fmt'].values,
     "Ovos proj.":       df_view['ovos_fmt'].values,
 })
-
-# Contadores
-total   = len(df_editor)
-validados = sum(st.session_state[chk_key].get(str(r['lote'])+'_'+str(r['unidade']), False) for _, r in df_view.iterrows())
-pendentes = total - validados
-
-cv1, cv2, cv3 = st.columns(3)
-cv1.metric("Total de lotes", total)
-cv2.metric("✅ Validados",   validados)
-cv3.metric("⏳ Pendentes",   pendentes)
 
 # Editor interativo
 edited = st.data_editor(
@@ -745,19 +756,19 @@ edited = st.data_editor(
     use_container_width=True,
     hide_index=True,
     column_config={
-        "✅ Validado": st.column_config.CheckboxColumn("✅", width="small"),
-        "Fase":        st.column_config.TextColumn("Fase", width="small"),
-        "Sem. atual":  st.column_config.NumberColumn("Sem.", width="small"),
+        "✅":          st.column_config.CheckboxColumn("✅", width="small"),
+        "Fase":        st.column_config.TextColumn("Fase", width="medium"),
+        "Sem.":        st.column_config.NumberColumn("Sem.", width="small"),
     },
-    disabled=["Fase","Unidade","Lote Prod.","Lote Recria","Granja Produção",
-              "Linhagem","Dt. Aloj.","Fêmeas","Sem. atual","Data pico","% pico","Ovos proj."],
+    disabled=["Fase","Unidade","Lote Prod.","Lote Recria","Granja Recria","Granja Produção",
+              "Linhagem","Dt. Aloj.","Fêmeas","Sem.","Data pico","% pico","Ovos proj."],
     key="checklist_editor"
 )
 
 # Salva estado dos checkboxes
 for i, row in edited.iterrows():
     lote_key = str(df_view.iloc[i]['lote']) + '_' + str(df_view.iloc[i]['unidade'])
-    st.session_state[chk_key][lote_key] = bool(row["✅ Validado"])
+    st.session_state[chk_key][lote_key] = bool(row["✅"])
 
 # Botão limpar
 if st.button("🗑️ Limpar todas as validações"):
