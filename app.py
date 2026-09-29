@@ -333,6 +333,19 @@ def calcular_projecao(lotes):
 
     return pd.DataFrame(resumo_rows), pd.DataFrame(proj_rows)
 
+# ── Referência de curva: ovos incubáveis por fêmea alojada (semanas 24-66) ──
+def _ovos_por_ave(curva):
+    total = 0.0
+    for sem, (pos, apr, viab) in curva.items():
+        total += 0.95 * (viab/100) * (pos/100) * (apr/100) * 7
+    return round(total, 1)
+
+_REF_CURVAS = {
+    "Cobb 500":   _ovos_por_ave(CURVA_COBB),
+    "Ross AP95":  _ovos_por_ave(CURVA_ROSS),
+    "Hubbard EP": _ovos_por_ave(CURVA_HUBBARD),
+}
+
 # ── Interface ────────────────────────────────────────────────────────────────
 
 col_logo, col_title = st.columns([1, 8])
@@ -341,6 +354,20 @@ with col_logo:
 with col_title:
     st.markdown("## Projeção de Ovos — Grupo Pluma")
     st.caption(f"Curvas oficiais COBB e ROSS · {HOJE.strftime('%d/%m/%Y')} · Alojamentos a partir de 01/01/2025")
+
+# Tabela de referência por linhagem
+st.markdown("##### Ovos incubáveis projetados por fêmea alojada — curvas padrão Girardi/Pluma")
+ref_cols = st.columns(len(_REF_CURVAS))
+for col, (lin, val) in zip(ref_cols, _REF_CURVAS.items()):
+    cor = CORES_LIN.get(lin, "#555")
+    col.markdown(
+        f"""<div style="border-left:4px solid {cor};padding:8px 14px;border-radius:5px;background:#f8f9fa">
+        <div style="font-size:13px;color:{cor};font-weight:700">{lin}</div>
+        <div style="font-size:28px;font-weight:800;color:#1a1a1a">{val:.0f}</div>
+        <div style="font-size:11px;color:#888">ovos incubáveis / fêmea alojada</div>
+        </div>""",
+        unsafe_allow_html=True)
+
 st.markdown("---")
 
 # ── Carregamento automático + opção de atualizar ─────────────────────────────
