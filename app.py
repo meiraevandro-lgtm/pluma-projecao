@@ -347,7 +347,7 @@ st.markdown("---")
 
 DATA_FILE = "data/alojamento.xlsx"
 
-_CACHE_VER = "v5"  # incrementar para forçar recarga do cache
+_CACHE_VER = "v6"  # incrementar para forçar recarga do cache
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_automatico(_ver=_CACHE_VER):
